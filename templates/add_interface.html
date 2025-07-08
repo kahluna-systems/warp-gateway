@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Add Interface - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('interfaces') }}">Interfaces</a></li>
+                <li class="breadcrumb-item active">Add Interface</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-plus"></i> Add WireGuard Interface</h1>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h5>Interface Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.network_type.label(class="form-label") }}
+                        {{ form.network_type(class="form-select") }}
+                        {% if form.network_type.errors %}
+                            <div class="text-danger">
+                                {% for error in form.network_type.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Select the VPN network type for this interface</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control", placeholder="wg0") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger">
+                                {% for error in form.name.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Interface name (e.g., wg0, wg1)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.port.label(class="form-label") }}
+                        {{ form.port(class="form-control", placeholder="51820") }}
+                        {% if form.port.errors %}
+                            <div class="text-danger">
+                                {% for error in form.port.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">UDP port for WireGuard (1-65535)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.subnet.label(class="form-label") }}
+                        {{ form.subnet(class="form-control", placeholder="10.0.0.0/24") }}
+                        {% if form.subnet.errors %}
+                            <div class="text-danger">
+                                {% for error in form.subnet.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Subnet for peer IP assignment (CIDR notation)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.custom_allowed_ips.label(class="form-label") }}
+                        {{ form.custom_allowed_ips(class="form-control", rows="3") }}
+                        {% if form.custom_allowed_ips.errors %}
+                            <div class="text-danger">
+                                {% for error in form.custom_allowed_ips.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Override default AllowedIPs for this network type (optional)</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Note:</strong> WireGuard keypair will be automatically generated for this interface. Network type determines routing behavior and overlay configuration.
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('interfaces') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Interface
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

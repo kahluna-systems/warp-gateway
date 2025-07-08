@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}{{ endpoint.name }} - Configuration{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-cog"></i> {{ endpoint.name }} Configuration</h1>
+            <div>
+                <a href="{{ url_for('endpoints') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Endpoints
+                </a>
+                <a href="{{ url_for('download_endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-success">
+                    <i class="fas fa-download"></i> Download Config
+                </a>
+                <button class="btn btn-primary" onclick="showQR({{ endpoint.id }})">
+                    <i class="fas fa-qrcode"></i> Show QR Code
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>WireGuard Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Configuration File:</strong> Copy this configuration to your WireGuard client or use the QR code for mobile devices.
+                </div>
+                
+                <div class="form-group">
+                    <label for="configContent"><strong>Configuration Content:</strong></label>
+                    <textarea id="configContent" class="form-control" rows="15" readonly style="font-family: monospace; font-size: 0.9em;">{{ config.config_content }}</textarea>
+                </div>
+                
+                <div class="mt-3">
+                    <button class="btn btn-outline-secondary" onclick="copyToClipboard()">
+                        <i class="fas fa-copy"></i> Copy to Clipboard
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="showQR({{ endpoint.id }})">
+                        <i class="fas fa-qrcode"></i> Show QR Code
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Endpoint Details</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>Name:</strong></td>
+                        <td>{{ endpoint.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Network:</strong></td>
+                        <td>{{ endpoint.vpn_network.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Type:</strong></td>
+                        <td><span class="badge bg-info">{{ endpoint.endpoint_type.title() }}</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>IP Address:</strong></td>
+                        <td><code>{{ endpoint.ip_address }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Public Key:</strong></td>
+                        <td>
+                            <code class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ endpoint.public_key }}">
+                                {{ endpoint.public_key }}
+                            </code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Created:</strong></td>
+                        <td>{{ endpoint.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Network Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>Network Type:</strong></td>
+                        <td><span class="badge bg-primary">{{ endpoint.vpn_network.get_network_type_config().name }}</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Server Port:</strong></td>
+                        <td><code>{{ endpoint.vpn_network.port }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Network Subnet:</strong></td>
+                        <td><code>{{ endpoint.vpn_network.subnet }}</code></td>
+                    </tr>
+                    {% if endpoint.vpn_network.vlan_id %}
+                    <tr>
+                        <td><strong>VLAN ID:</strong></td>
+                        <td><span class="badge bg-info">{{ endpoint.vpn_network.vlan_id }}</span></td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Configuration Version</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Version:</strong> {{ config.version }}</p>
+                <p><strong>Generated:</strong> {{ config.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                <p class="text-muted small">Configuration files are versioned for tracking changes.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Modal -->
+<div class="modal fade" id="qrModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">QR Code for {{ endpoint.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="qrCode"></div>
+                <p class="mt-3 text-muted">Scan this QR code with your WireGuard client</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="{{ url_for('download_endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-primary">
+                    <i class="fas fa-download"></i> Download Config
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyToClipboard() {
+    const textarea = document.getElementById('configContent');
+    textarea.select();
+    textarea.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        // Show success feedback
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+    } catch (err) {
+        alert('Failed to copy configuration to clipboard');
+    }
+}
+
+function showQR(endpointId) {
+    fetch(`/endpoints/${endpointId}/qr`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('qrCode').innerHTML = `<img src="data:image/png;base64,${data.qr_code}" class="img-fluid" alt="QR Code">`;
+            const modal = new bootstrap.Modal(document.getElementById('qrModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading QR code');
+        });
+}
+</script>
+{% endblock %}

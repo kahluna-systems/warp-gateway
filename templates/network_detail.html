@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}{{ network.name }} - Network Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-network-wired"></i> {{ network.name }}</h1>
+            <div>
+                <a href="{{ url_for('networks') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Networks
+                </a>
+                <a href="{{ url_for('add_endpoint') }}?network_id={{ network.id }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Add Endpoint
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Network Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Basic Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Network Type:</strong></td>
+                                <td><span class="badge bg-primary">{{ network_config.name }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Port:</strong></td>
+                                <td><code>{{ network.port }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Subnet:</strong></td>
+                                <td><code>{{ network.subnet }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Status:</strong></td>
+                                <td>
+                                    {% if network.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Network Type Details</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Routing Style:</strong></td>
+                                <td>{{ network_config.routing_style.replace('_', ' ').title() }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Allowed IPs:</strong></td>
+                                <td><code>{{ network_config.allowed_ips }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Peer to Peer:</strong></td>
+                                <td>{{ 'Yes' if network_config.peer_to_peer else 'No' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Max Endpoints:</strong></td>
+                                <td>{{ network_config.max_peers or 'Unlimited' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                {% if network.vlan_id or network.vlan_range or network.bridge_name %}
+                <hr>
+                <h6>VLAN Configuration</h6>
+                <div class="row">
+                    <div class="col-md-12">
+                        <table class="table table-sm">
+                            {% if network.vlan_id %}
+                            <tr>
+                                <td><strong>VLAN ID:</strong></td>
+                                <td><span class="badge bg-info">{{ network.vlan_id }}</span></td>
+                            </tr>
+                            {% endif %}
+                            {% if network.vlan_range %}
+                            <tr>
+                                <td><strong>VLAN Range:</strong></td>
+                                <td><code>{{ network.vlan_range }}</code></td>
+                            </tr>
+                            {% endif %}
+                            {% if network.bridge_name %}
+                            <tr>
+                                <td><strong>Bridge Name:</strong></td>
+                                <td><code>{{ network.bridge_name }}</code></td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if network.custom_allowed_ips %}
+                <hr>
+                <h6>Custom Allowed IPs</h6>
+                <p><code>{{ network.custom_allowed_ips }}</code></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <h2 class="text-primary">{{ endpoints|length }}</h2>
+                    <p class="text-muted">Total Endpoints</p>
+                    
+                    {% if network_config.max_peers %}
+                    <div class="progress mb-3">
+                        <div class="progress-bar" style="width: {{ (endpoints|length / network_config.max_peers * 100)|round }}%"></div>
+                    </div>
+                    <p class="small text-muted">{{ endpoints|length }} / {{ network_config.max_peers }} endpoints used</p>
+                    {% endif %}
+                </div>
+                
+                <hr>
+                
+                <h6>Endpoint Types</h6>
+                {% set endpoint_types = {} %}
+                {% for endpoint in endpoints %}
+                    {% set _ = endpoint_types.update({endpoint.endpoint_type: endpoint_types.get(endpoint.endpoint_type, 0) + 1}) %}
+                {% endfor %}
+                
+                {% if endpoint_types %}
+                    {% for type, count in endpoint_types.items() %}
+                    <div class="d-flex justify-content-between">
+                        <span>{{ type.replace('_', ' ').title() }}:</span>
+                        <span class="badge bg-secondary">{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted small">No endpoints configured</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('add_endpoint') }}?network_id={{ network.id }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> Add Endpoint
+                    </a>
+                    <a href="{{ url_for('bulk_endpoints') }}?network_id={{ network.id }}" class="btn btn-info btn-sm">
+                        <i class="fas fa-plus"></i> Bulk Add Endpoints
+                    </a>
+                    <button class="btn btn-outline-warning btn-sm">
+                        <i class="fas fa-edit"></i> Edit Network
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm">
+                        <i class="fas fa-trash"></i> Delete Network
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5>Network Endpoints</h5>
+                    <span class="badge bg-primary">{{ endpoints|length }} endpoints</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if endpoints %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>IP Address</th>
+                                <th>Public Key</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for endpoint in endpoints %}
+                            <tr>
+                                <td><strong>{{ endpoint.name }}</strong></td>
+                                <td>
+                                    <span class="badge bg-info">{{ endpoint.endpoint_type.title() }}</span>
+                                </td>
+                                <td><code>{{ endpoint.ip_address }}</code></td>
+                                <td>
+                                    <code class="text-truncate d-inline-block" style="max-width: 200px;">
+                                        {{ endpoint.public_key }}
+                                    </code>
+                                </td>
+                                <td>{{ endpoint.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-outline-info" title="View Config">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('download_endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-outline-success" title="Download Config">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        <button class="btn btn-outline-primary" onclick="showQR({{ endpoint.id }})" title="QR Code">
+                                            <i class="fas fa-qrcode"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h4>No Endpoints in this Network</h4>
+                    <p class="text-muted">Add your first endpoint to get started with this network.</p>
+                    <a href="{{ url_for('add_endpoint') }}?network_id={{ network.id }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Endpoint
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Modal -->
+<div class="modal fade" id="qrModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">QR Code for Endpoint Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="qrCode"></div>
+                <p class="mt-3 text-muted">Scan this QR code with your WireGuard client</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showQR(endpointId) {
+    fetch(`/endpoints/${endpointId}/qr`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('qrCode').innerHTML = `<img src="data:image/png;base64,${data.qr_code}" class="img-fluid" alt="QR Code">`;
+            const modal = new bootstrap.Modal(document.getElementById('qrModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading QR code');
+        });
+}
+</script>
+{% endblock %}

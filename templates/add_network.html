@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}Add VPN Network - KahLuna WARP VPN Gateway{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-plus"></i> Add New VPN Network</h1>
+            <a href="{{ url_for('networks') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Networks
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Network Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control", placeholder="e.g., corporate-vpn, home-office") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger">
+                                {% for error in form.name.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Choose a unique name to identify this VPN network.</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.port.label(class="form-label") }}
+                                {{ form.port(class="form-control", placeholder="e.g., 51820") }}
+                                {% if form.port.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.port.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">UDP port for WireGuard connections (1024-65535).</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.subnet.label(class="form-label") }}
+                                {{ form.subnet(class="form-control", placeholder="e.g., 10.0.1.0/24") }}
+                                {% if form.subnet.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.subnet.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">IP subnet for endpoint addresses.</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.network_type.label(class="form-label") }}
+                        {{ form.network_type(class="form-select") }}
+                        {% if form.network_type.errors %}
+                            <div class="text-danger">
+                                {% for error in form.network_type.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Select the network type based on your use case. 
+                            <a href="{{ url_for('network_types') }}" target="_blank">View network type details</a>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.custom_allowed_ips.label(class="form-label") }}
+                        {{ form.custom_allowed_ips(class="form-control", rows="3", placeholder="Optional: Override default allowed IPs for this network type") }}
+                        {% if form.custom_allowed_ips.errors %}
+                            <div class="text-danger">
+                                {% for error in form.custom_allowed_ips.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Leave empty to use default allowed IPs for the selected network type.</div>
+                    </div>
+                    
+                    <!-- VLAN Configuration Section -->
+                    <div class="card bg-light">
+                        <div class="card-header">
+                            <h6 class="mb-0">VLAN Configuration (Optional)</h6>
+                            <small class="text-muted">For Layer 2 networks requiring VLAN isolation</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        {{ form.vlan_id.label(class="form-label") }}
+                                        {{ form.vlan_id(class="form-control", placeholder="e.g., 100") }}
+                                        {% if form.vlan_id.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.vlan_id.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">VLAN ID (1-4094)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        {{ form.vlan_range.label(class="form-label") }}
+                                        {{ form.vlan_range(class="form-control", placeholder="e.g., 100-110") }}
+                                        {% if form.vlan_range.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.vlan_range.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">VLAN range for segmentation</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        {{ form.bridge_name.label(class="form-label") }}
+                                        {{ form.bridge_name(class="form-control", placeholder="e.g., br-custom") }}
+                                        {% if form.bridge_name.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.bridge_name.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">Custom bridge name</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{{ url_for('networks') }}" class="btn btn-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Network
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>What happens next?</h5>
+            </div>
+            <div class="card-body">
+                <ol class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-key text-primary"></i>
+                        <strong>Keys Generated:</strong> Private and public keys will be automatically generated for the network.
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-network-wired text-success"></i>
+                        <strong>Interface Created:</strong> A WireGuard interface will be configured on the server.
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-route text-info"></i>
+                        <strong>Routing Configured:</strong> Network routing will be set up based on the selected network type.
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-layer-group text-warning"></i>
+                        <strong>Overlay Support:</strong> Layer 2 overlays (VXLAN/GRE) will be configured if required.
+                    </li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Network Types</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    Network types determine routing behavior and overlay requirements. 
+                    <a href="{{ url_for('network_types') }}" target="_blank">View detailed descriptions</a> 
+                    of all available network types.
+                </p>
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item px-0 py-2">
+                        <strong>Secure Internet</strong><br>
+                        <small class="text-muted">Full tunnel for privacy</small>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <strong>Remote Resource Gateway</strong><br>
+                        <small class="text-muted">Split tunnel for corporate access</small>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <strong>L3VPN Gateway</strong><br>
+                        <small class="text-muted">Site-to-site routing</small>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <strong>L2 Point to Point</strong><br>
+                        <small class="text-muted">Direct layer 2 bridging</small>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <strong>L2 Mesh</strong><br>
+                        <small class="text-muted">Multi-site layer 2 mesh</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>VLAN Guidelines</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small">
+                    <li class="mb-2">
+                        <i class="fas fa-info-circle text-info"></i>
+                        VLAN configuration is typically used with Layer 2 network types
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-shield-alt text-success"></i>
+                        VLANs provide network isolation and segmentation
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                        VLAN IDs must be unique across networks
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if get_flashed_messages() %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endwith %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Peer Config - {{ peer.name }} - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('peers') }}">Peers</a></li>
+                <li class="breadcrumb-item active">{{ peer.name }}</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-user"></i> {{ peer.name }} Configuration</h1>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Peer Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Name:</dt>
+                    <dd class="col-sm-8">{{ peer.name }}</dd>
+                    
+                    <dt class="col-sm-4">Interface:</dt>
+                    <dd class="col-sm-8">{{ peer.wg_interface.gateway.name }} - {{ peer.wg_interface.name }}</dd>
+                    
+                    <dt class="col-sm-4">IP Address:</dt>
+                    <dd class="col-sm-8"><code>{{ peer.ip_address }}</code></dd>
+                    
+                    <dt class="col-sm-4">Public Key:</dt>
+                    <dd class="col-sm-8">
+                        <code class="text-break">{{ peer.public_key }}</code>
+                    </dd>
+                    
+                    <dt class="col-sm-4">Created:</dt>
+                    <dd class="col-sm-8">{{ peer.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('download_peer_config', peer_id=peer.id) }}" class="btn btn-success">
+                        <i class="fas fa-download"></i> Download Config File
+                    </a>
+                    <button class="btn btn-primary" onclick="showQR({{ peer.id }})">
+                        <i class="fas fa-qrcode"></i> Show QR Code
+                    </button>
+                    <button class="btn btn-info" onclick="copyToClipboard()">
+                        <i class="fas fa-copy"></i> Copy Config to Clipboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>WireGuard Configuration</h5>
+            </div>
+            <div class="card-body">
+                <pre id="configContent" class="bg-light p-3 rounded"><code>{{ config.config_content }}</code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Modal -->
+<div class="modal fade" id="qrModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">QR Code for {{ peer.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="qrCode"></div>
+                <p class="mt-3 text-muted">Scan this QR code with your WireGuard client</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showQR(peerId) {
+    fetch(`/peers/${peerId}/qr`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('qrCode').innerHTML = `<img src="data:image/png;base64,${data.qr_code}" class="img-fluid" alt="QR Code">`;
+            const modal = new bootstrap.Modal(document.getElementById('qrModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading QR code');
+        });
+}
+
+function copyToClipboard() {
+    const configText = document.getElementById('configContent').textContent;
+    navigator.clipboard.writeText(configText).then(function() {
+        alert('Configuration copied to clipboard!');
+    }, function(err) {
+        console.error('Could not copy text: ', err);
+        alert('Error copying to clipboard');
+    });
+}
+</script>
+{% endblock %}

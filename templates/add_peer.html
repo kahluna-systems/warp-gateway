@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Add Peer - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('peers') }}">Peers</a></li>
+                <li class="breadcrumb-item active">Add Peer</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-plus"></i> Add Peer</h1>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h5>Peer Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.wg_interface_id.label(class="form-label") }}
+                        {{ form.wg_interface_id(class="form-select") }}
+                        {% if form.wg_interface_id.errors %}
+                            <div class="text-danger">
+                                {% for error in form.wg_interface_id.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Select the WireGuard interface for this peer</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control", placeholder="client-001") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger">
+                                {% for error in form.name.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Unique name for this peer</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Automatic Configuration:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>IP address will be auto-assigned from the interface subnet</li>
+                            <li>WireGuard keypair will be automatically generated</li>
+                            <li>Preshared key will be generated for additional security</li>
+                            <li>Configuration file will be created automatically</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('peers') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create Peer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

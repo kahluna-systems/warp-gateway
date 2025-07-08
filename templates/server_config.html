@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Server Configuration - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1><i class="fas fa-server"></i> Server Configuration</h1>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Current Configuration</h5>
+            </div>
+            <div class="card-body">
+                {% if server_config %}
+                <table class="table table-borderless">
+                    <tr>
+                        <th>Hostname:</th>
+                        <td><code>{{ server_config.hostname }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>Public IP:</th>
+                        <td><code>{{ server_config.public_ip }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>Location:</th>
+                        <td>{{ server_config.location or 'Not set' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Admin Email:</th>
+                        <td>{{ server_config.admin_email or 'Not set' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Initialized:</th>
+                        <td>{{ server_config.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    </tr>
+                </table>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Server not initialized!</strong>
+                    <p class="mb-0">Run <code>python server_init.py</code> to initialize the server configuration.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>System Requirements</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check-circle text-success"></i> WireGuard kernel module</li>
+                    <li><i class="fas fa-check-circle text-success"></i> IP forwarding enabled</li>
+                    <li><i class="fas fa-check-circle text-success"></i> iptables firewall rules</li>
+                    <li><i class="fas fa-check-circle text-success"></i> UDP port access</li>
+                </ul>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Note:</strong> This server acts as both the management interface and the WireGuard gateway. All VPN traffic will be routed through this server.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Available Network Types</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card border-primary">
+                            <div class="card-body">
+                                <h6>Secure Internet</h6>
+                                <p class="text-muted small">Full tunnel routing for secure internet access</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-success">
+                            <div class="card-body">
+                                <h6>Remote Resource Gateway</h6>
+                                <p class="text-muted small">Access to specific remote resources</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-info">
+                            <div class="card-body">
+                                <h6>L3VPN Gateway</h6>
+                                <p class="text-muted small">Layer 3 VPN with custom routing</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="card border-warning">
+                            <div class="card-body">
+                                <h6>L2 Point to Point</h6>
+                                <p class="text-muted small">Layer 2 bridge between two endpoints</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-secondary">
+                            <div class="card-body">
+                                <h6>L2 Mesh</h6>
+                                <p class="text-muted small">Layer 2 mesh network with overlay</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Network Types - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-project-diagram"></i> Available Network Types</h1>
+            <a href="{{ url_for('add_network') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create Network
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>Built-in Network Types:</strong> These network types are pre-configured and cannot be modified. Each type provides specific routing and overlay capabilities.
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Routing Style</th>
+                                <th>Allowed IPs</th>
+                                <th>Peer to Peer</th>
+                                <th>Overlay Support</th>
+                                <th>Max Peers</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, nt in network_types.items() %}
+                            <tr>
+                                <td><strong>{{ nt.name }}</strong></td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if nt.routing_style == 'full_tunnel' else 'secondary' if nt.routing_style == 'split_tunnel' else 'info' if nt.routing_style == 'peer_to_peer' else 'warning' }}">
+                                        {{ nt.routing_style.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <code class="text-truncate d-inline-block" style="max-width: 200px;">
+                                        {{ nt.allowed_ips }}
+                                    </code>
+                                </td>
+                                <td>
+                                    {% if nt.peer_to_peer %}
+                                        <span class="badge bg-success">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if nt.overlay_required %}
+                                        <span class="badge bg-info">Required</span>
+                                    {% else %}
+                                        <span class="text-muted">Optional</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if nt.max_peers %}
+                                        <span class="badge bg-warning">{{ nt.max_peers }}</span>
+                                    {% else %}
+                                        <span class="text-muted">Unlimited</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if key == 'secure_internet' %}
+                                        Full internet access through VPN with all traffic routed
+                                    {% elif key == 'remote_resource' %}
+                                        Access specific remote resources with split tunneling
+                                    {% elif key == 'l3vpn_gateway' %}
+                                        Layer 3 VPN gateway with custom routing configuration
+                                    {% elif key == 'l2_point_to_point' %}
+                                        Direct Layer 2 bridge between two endpoints via GRE TAP
+                                    {% elif key == 'l2_mesh' %}
+                                        Layer 2 mesh network with VXLAN overlay support
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Network Type Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="networkTypeAccordion">
+                    {% for key, nt in network_types.items() %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading{{ key }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="false" aria-controls="collapse{{ key }}">
+                                {{ nt.name }}
+                            </button>
+                        </h2>
+                        <div id="collapse{{ key }}" class="accordion-collapse collapse" aria-labelledby="heading{{ key }}" data-bs-parent="#networkTypeAccordion">
+                            <div class="accordion-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>Routing Configuration:</strong>
+                                        <ul class="list-unstyled ms-3">
+                                            <li>Style: {{ nt.routing_style.replace('_', ' ').title() }}</li>
+                                            <li>Allowed IPs: <code>{{ nt.allowed_ips }}</code></li>
+                                            <li>Peer to Peer: {{ 'Yes' if nt.peer_to_peer else 'No' }}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Advanced Features:</strong>
+                                        <ul class="list-unstyled ms-3">
+                                            <li>Overlay Required: {{ 'Yes' if nt.overlay_required else 'No' }}</li>
+                                            <li>Max Peers: {{ nt.max_peers or 'Unlimited' }}</li>
+                                            <li>Use Case: 
+                                                {% if key == 'secure_internet' %}
+                                                    Secure internet browsing
+                                                {% elif key == 'remote_resource' %}
+                                                    Corporate resource access
+                                                {% elif key == 'l3vpn_gateway' %}
+                                                    Site-to-site VPN
+                                                {% elif key == 'l2_point_to_point' %}
+                                                    Direct site bridging
+                                                {% elif key == 'l2_mesh' %}
+                                                    Multi-site mesh network
+                                                {% endif %}
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

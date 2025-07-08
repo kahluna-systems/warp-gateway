@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Gateways - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-server"></i> Gateways</h1>
+            <a href="{{ url_for('add_gateway') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Gateway
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                {% if gateways %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Public IP</th>
+                                <th>Location</th>
+                                <th>Interfaces</th>
+                                <th>Description</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for gateway in gateways %}
+                            <tr>
+                                <td><strong>{{ gateway.name }}</strong></td>
+                                <td><code>{{ gateway.public_ip }}</code></td>
+                                <td>{{ gateway.location or 'N/A' }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ gateway.interfaces|length }} interfaces</span>
+                                </td>
+                                <td>{{ gateway.description[:50] + '...' if gateway.description and gateway.description|length > 50 else gateway.description or 'N/A' }}</td>
+                                <td>{{ gateway.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-server fa-3x text-muted mb-3"></i>
+                    <h4>No Gateways Found</h4>
+                    <p class="text-muted">Create your first gateway to get started.</p>
+                    <a href="{{ url_for('add_gateway') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Gateway
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

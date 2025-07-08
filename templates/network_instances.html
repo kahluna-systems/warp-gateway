@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Network Instances - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-sitemap"></i> Network Instances</h1>
+            <a href="{{ url_for('add_network_instance') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Network Instance
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                {% if instances %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Interface</th>
+                                <th>Network Type</th>
+                                <th>Allowed IPs</th>
+                                <th>Overlay Config</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for instance in instances %}
+                            <tr>
+                                <td><strong>{{ instance.name }}</strong></td>
+                                <td>{{ instance.wg_interface.gateway.name }} - {{ instance.wg_interface.name }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if instance.network_type.routing_mode == 'full_tunnel' else 'secondary' if instance.network_type.routing_mode == 'split_tunnel' else 'info' if instance.network_type.routing_mode == 'peer_to_peer' else 'warning' }}">
+                                        {{ instance.network_type.name }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <code class="text-truncate d-inline-block" style="max-width: 200px;">
+                                        {{ instance.allowed_ips or instance.network_type.allowed_ips_template or 'N/A' }}
+                                    </code>
+                                </td>
+                                <td>
+                                    {% if instance.overlay_config %}
+                                        <span class="badge bg-info">Configured</span>
+                                    {% else %}
+                                        <span class="text-muted">None</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ instance.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-sitemap fa-3x text-muted mb-3"></i>
+                    <h4>No Network Instances Found</h4>
+                    <p class="text-muted">Create network instances to apply network types to interfaces.</p>
+                    <a href="{{ url_for('add_network_instance') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Network Instance
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

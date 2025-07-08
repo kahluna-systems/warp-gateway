@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - KahLuna WARP VPN Gateway{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1><i class="fas fa-tachometer-alt"></i> VPN Gateway Dashboard</h1>
+        {% if server_config %}
+            <p class="lead">{{ server_config.hostname }} - {{ server_config.public_ip }}</p>
+        {% else %}
+            <p class="lead text-warning">Server not initialized - run server initialization</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Server Status</h5>
+                        <h6>{{ 'Online' if server_config else 'Not Configured' }}</h6>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-server fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('server_config') }}" class="text-white text-decoration-none">
+                    View Config <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">VPN Networks</h5>
+                        <h2>{{ networks|length }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-network-wired fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('networks') }}" class="text-white text-decoration-none">
+                    View Details <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Endpoints</h5>
+                        <h2>{{ endpoints|length }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-users fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('endpoints') }}" class="text-white text-decoration-none">
+                    View Details <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Active Connections</h5>
+                        <h2>{{ endpoints|length }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-link fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <span class="text-white">
+                    All endpoints shown as active
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <a href="{{ url_for('add_network') }}" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus"></i> Add VPN Network
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <a href="{{ url_for('add_endpoint') }}" class="btn btn-success btn-lg">
+                                <i class="fas fa-plus"></i> Add Endpoint
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <a href="{{ url_for('bulk_endpoints') }}" class="btn btn-info btn-lg">
+                                <i class="fas fa-plus"></i> Bulk Add Endpoints
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if gateways %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Gateways</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Public IP</th>
+                                <th>Location</th>
+                                <th>Interfaces</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for gateway in gateways[:5] %}
+                            <tr>
+                                <td>{{ gateway.name }}</td>
+                                <td>{{ gateway.public_ip }}</td>
+                                <td>{{ gateway.location or 'N/A' }}</td>
+                                <td>{{ gateway.interfaces|length }}</td>
+                                <td>{{ gateway.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

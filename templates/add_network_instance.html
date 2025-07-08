@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Add Network Instance - KahLuna WARP VPN Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('network_instances') }}">Network Instances</a></li>
+                <li class="breadcrumb-item active">Add Network Instance</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-plus"></i> Add Network Instance</h1>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h5>Network Instance Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.wg_interface_id.label(class="form-label") }}
+                        {{ form.wg_interface_id(class="form-select") }}
+                        {% if form.wg_interface_id.errors %}
+                            <div class="text-danger">
+                                {% for error in form.wg_interface_id.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Select the WireGuard interface for this network instance</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.network_type_id.label(class="form-label") }}
+                        {{ form.network_type_id(class="form-select") }}
+                        {% if form.network_type_id.errors %}
+                            <div class="text-danger">
+                                {% for error in form.network_type_id.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Select the network type template to apply</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger">
+                                {% for error in form.name.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Unique name for this network instance</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.allowed_ips.label(class="form-label") }}
+                        {{ form.allowed_ips(class="form-control", rows="3") }}
+                        {% if form.allowed_ips.errors %}
+                            <div class="text-danger">
+                                {% for error in form.allowed_ips.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Override default allowed IPs from network type (optional)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.overlay_config.label(class="form-label") }}
+                        {{ form.overlay_config(class="form-control", rows="4") }}
+                        {% if form.overlay_config.errors %}
+                            <div class="text-danger">
+                                {% for error in form.overlay_config.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">JSON configuration for overlay networks (GRE/VXLAN parameters)</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Network Instance:</strong> Applies a network type template to a specific WireGuard interface, 
+                        defining routing behavior and overlay configuration for peers on that interface.
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('network_instances') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Network Instance
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

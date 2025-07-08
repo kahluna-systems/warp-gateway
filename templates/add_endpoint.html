@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Add Endpoint - KahLuna WARP VPN Gateway{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-plus"></i> Add New Endpoint</h1>
+            <a href="{{ url_for('endpoints') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Endpoints
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Endpoint Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.vpn_network_id.label(class="form-label") }}
+                        {{ form.vpn_network_id(class="form-select") }}
+                        {% if form.vpn_network_id.errors %}
+                            <div class="text-danger">
+                                {% for error in form.vpn_network_id.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Select the VPN network this endpoint will connect to.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control", placeholder="e.g., john-laptop, office-router") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger">
+                                {% for error in form.name.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Choose a unique name to identify this endpoint.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.endpoint_type.label(class="form-label") }}
+                        {{ form.endpoint_type(class="form-select") }}
+                        {% if form.endpoint_type.errors %}
+                            <div class="text-danger">
+                                {% for error in form.endpoint_type.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Select the type of device this endpoint represents.</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('endpoints') }}" class="btn btn-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Endpoint
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>What happens next?</h5>
+            </div>
+            <div class="card-body">
+                <ol class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-key text-primary"></i>
+                        <strong>Keys Generated:</strong> Private and public keys will be automatically generated for this endpoint.
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-network-wired text-success"></i>
+                        <strong>IP Assigned:</strong> An IP address will be automatically assigned from the network's subnet.
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-file-code text-info"></i>
+                        <strong>Config Created:</strong> A WireGuard configuration file will be generated for easy client setup.
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-qrcode text-warning"></i>
+                        <strong>QR Code:</strong> Access QR codes for mobile device setup.
+                    </li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Endpoint Types</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="endpointTypeAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mobileDevice">
+                                Mobile Device
+                            </button>
+                        </h2>
+                        <div id="mobileDevice" class="accordion-collapse collapse" data-bs-parent="#endpointTypeAccordion">
+                            <div class="accordion-body">
+                                <small>Smartphones, tablets, laptops, and personal devices.</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cpeDevice">
+                                CPE Device
+                            </button>
+                        </h2>
+                        <div id="cpeDevice" class="accordion-collapse collapse" data-bs-parent="#endpointTypeAccordion">
+                            <div class="accordion-body">
+                                <small>Customer premises equipment like routers, access points, and networking hardware.</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gateway">
+                                Gateway
+                            </button>
+                        </h2>
+                        <div id="gateway" class="accordion-collapse collapse" data-bs-parent="#endpointTypeAccordion">
+                            <div class="accordion-body">
+                                <small>Network gateways, servers, and site-to-site connections.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if get_flashed_messages() %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endwith %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
