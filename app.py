@@ -15,7 +15,9 @@ db.init_app(app)
 
 from models import ServerConfig, VPNNetwork, Endpoint, EndpointConfig, NETWORK_TYPES
 from forms import ServerConfigForm, VPNNetworkForm, EndpointForm, BulkEndpointForm
-from utils import generate_keypair, generate_preshared_key, generate_endpoint_config, generate_qr_code
+from additional_forms import SearchForm, ServerConfigEditForm, RateLimitForm
+from utils import generate_keypair, generate_preshared_key, generate_endpoint_config, generate_qr_code, perform_universal_search, get_system_statistics, format_vcid
+from datetime import datetime
 
 
 # Routes
@@ -33,23 +35,7 @@ def server_config():
     return render_template('server_config.html', server_config=server_config)
 
 
-@app.route('/server-config/edit', methods=['GET', 'POST'])
-def edit_server_config():
-    server_config = ServerConfig.query.first()
-    if not server_config:
-        flash('Server not initialized. Please run server initialization first.', 'error')
-        return redirect(url_for('index'))
-    
-    form = ServerConfigForm(obj=server_config)
-    if form.validate_on_submit():
-        server_config.hostname = form.hostname.data
-        server_config.public_ip = form.public_ip.data
-        server_config.location = form.location.data
-        server_config.admin_email = form.admin_email.data
-        db.session.commit()
-        flash('Server configuration updated successfully!', 'success')
-        return redirect(url_for('server_config'))
-    return render_template('edit_server_config.html', form=form, server_config=server_config)
+# Server config edit route moved to avoid duplication
 
 
 @app.route('/networks')
@@ -196,6 +182,122 @@ def download_endpoint_config(endpoint_id):
     response.headers['Content-Disposition'] = f'attachment; filename={endpoint.name}.conf'
     response.headers['Content-Type'] = 'text/plain'
     return response
+
+
+@app.route('/search', methods=['GET', 'POST'])
+def search():
+    form = SearchForm()
+    results = None
+    
+    if form.validate_on_submit():
+        query = form.query.data
+        search_type = form.search_type.data
+        results = perform_universal_search(query, search_type)
+    
+    return render_template('search.html', form=form, results=results)
+
+
+@app.route('/server-config/edit', methods=['GET', 'POST'])
+def edit_server_config():
+    server_config = ServerConfig.query.first()
+    if not server_config:
+        flash('Server configuration not found. Please run server initialization first.', 'error')
+        return redirect(url_for('index'))
+    
+    form = ServerConfigEditForm(obj=server_config)
+    
+    if form.validate_on_submit():
+        server_config.hostname = form.hostname.data
+        server_config.public_ip = form.public_ip.data
+        server_config.location = form.location.data
+        server_config.admin_email = form.admin_email.data
+        server_config.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        flash('Server configuration updated successfully!', 'success')
+        return redirect(url_for('server_config'))
+    
+    return render_template('edit_server_config.html', form=form, server_config=server_config)
+
+
+@app.route('/statistics')
+def statistics():
+    stats = get_system_statistics()
+    return render_template('statistics.html', stats=stats)
+
+
+@app.route('/api/statistics')
+def api_statistics():
+    """API endpoint for real-time statistics"""
+    stats = get_system_statistics()
+    return jsonify(stats)
+
+
+@app.route('/circuits')
+def circuits():
+    """Circuit management interface"""
+    networks = VPNNetwork.query.all()
+    circuit_info = []
+    
+    for network in networks:
+        circuit_info.append({
+            'network': network,
+            'vcid_formatted': format_vcid(network.vcid),
+            'statistics': network.get_statistics(),
+            'capacity': network.get_dynamic_subnet_info()
+        })
+    
+    return render_template('circuits.html', circuits=circuit_info)
+
+
+@app.route('/networks/<int:network_id>/rate-limit', methods=['GET', 'POST'])
+def network_rate_limit(network_id):
+    """Configure rate limiting for a network"""
+    network = VPNNetwork.query.get_or_404(network_id)
+    
+    form = RateLimitForm()
+    if network.rate_limit_enabled:
+        form.enabled.data = True
+        form.download_mbps.data = network.rate_limit_download_mbps
+        form.upload_mbps.data = network.rate_limit_upload_mbps
+        form.burst_factor.data = network.rate_limit_burst_factor
+    
+    if form.validate_on_submit():
+        network.rate_limit_enabled = form.enabled.data
+        network.rate_limit_download_mbps = form.download_mbps.data if form.enabled.data else None
+        network.rate_limit_upload_mbps = form.upload_mbps.data if form.enabled.data else None
+        network.rate_limit_burst_factor = form.burst_factor.data if form.enabled.data else 1.5
+        
+        db.session.commit()
+        flash('Rate limiting configuration updated successfully!', 'success')
+        return redirect(url_for('network_detail', network_id=network_id))
+    
+    return render_template('rate_limit.html', form=form, network=network, target_type='network')
+
+
+@app.route('/endpoints/<int:endpoint_id>/rate-limit', methods=['GET', 'POST'])
+def endpoint_rate_limit(endpoint_id):
+    """Configure rate limiting for an endpoint"""
+    endpoint = Endpoint.query.get_or_404(endpoint_id)
+    
+    form = RateLimitForm()
+    if endpoint.rate_limit_enabled:
+        form.enabled.data = True
+        form.download_mbps.data = endpoint.rate_limit_download_mbps
+        form.upload_mbps.data = endpoint.rate_limit_upload_mbps
+        form.burst_factor.data = endpoint.rate_limit_burst_factor
+    
+    if form.validate_on_submit():
+        endpoint.rate_limit_enabled = form.enabled.data
+        endpoint.rate_limit_download_mbps = form.download_mbps.data if form.enabled.data else None
+        endpoint.rate_limit_upload_mbps = form.upload_mbps.data if form.enabled.data else None
+        endpoint.rate_limit_burst_factor = form.burst_factor.data if form.enabled.data else 1.5
+        
+        db.session.commit()
+        flash('Rate limiting configuration updated successfully!', 'success')
+        return redirect(url_for('endpoint_config', endpoint_id=endpoint_id))
+    
+    return render_template('rate_limit.html', form=form, endpoint=endpoint, target_type='endpoint')
 
 
 @app.route('/endpoints/<int:endpoint_id>/qr')

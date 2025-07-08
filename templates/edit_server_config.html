@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Server Config - KahLuna WARP Gateway{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog"></i> Edit Server Configuration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_server_config') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.hostname.label(class="form-label") }}
+                                    {{ form.hostname(class="form-control") }}
+                                    {% if form.hostname.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.hostname.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Server hostname or FQDN</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.public_ip.label(class="form-label") }}
+                                    {{ form.public_ip(class="form-control") }}
+                                    {% if form.public_ip.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.public_ip.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Public IP address for client connections</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.location.label(class="form-label") }}
+                                    {{ form.location(class="form-control") }}
+                                    {% if form.location.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.location.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Server location (e.g., "New York, USA")</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.admin_email.label(class="form-label") }}
+                                    {{ form.admin_email(class="form-control") }}
+                                    {% if form.admin_email.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.admin_email.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Administrator email address</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('server_config') }}" class="btn btn-secondary me-md-2">Cancel</a>
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Current Configuration</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Hostname:</strong></td>
+                            <td>{{ server_config.hostname }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Public IP:</strong></td>
+                            <td><code>{{ server_config.public_ip }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Location:</strong></td>
+                            <td>{{ server_config.location or 'Not set' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Admin Email:</strong></td>
+                            <td>{{ server_config.admin_email or 'Not set' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Created:</strong></td>
+                            <td>{{ server_config.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Updated:</strong></td>
+                            <td>{{ server_config.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Configuration Tips</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-lightbulb text-warning"></i>
+                            <strong>Hostname:</strong> Use a fully qualified domain name (FQDN) for better certificate management.
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-lightbulb text-warning"></i>
+                            <strong>Public IP:</strong> Must be accessible from the internet for client connections.
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-lightbulb text-warning"></i>
+                            <strong>Location:</strong> Helps users identify the server location.
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-lightbulb text-warning"></i>
+                            <strong>Admin Email:</strong> Used for notifications and certificate management.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

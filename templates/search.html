@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Search - KahLuna WARP Gateway{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-search"></i> Universal Search
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('search') }}">
+                        {{ form.hidden_tag() }}
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    {{ form.query.label(class="form-label") }}
+                                    {{ form.query(class="form-control", placeholder="Search networks, endpoints, VCIDs, IP addresses...") }}
+                                    {% if form.query.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.query.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    {{ form.search_type.label(class="form-label") }}
+                                    {{ form.search_type(class="form-select") }}
+                                </div>
+                            </div>
+                            <div class="col-md-1">
+                                <div class="mb-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <div class="d-grid">
+                                        {{ form.submit(class="btn btn-primary") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if results %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Search Results
+                        <span class="badge bg-primary ms-2">{{ results.total_results }} results</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if results.total_results == 0 %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h4>No results found</h4>
+                            <p class="text-muted">Try different search terms or search type.</p>
+                        </div>
+                    {% else %}
+                        {% if results.networks %}
+                        <div class="mb-4">
+                            <h6><i class="fas fa-network-wired"></i> Networks ({{ results.networks|length }})</h6>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>VCID</th>
+                                            <th>Type</th>
+                                            <th>Subnet</th>
+                                            <th>Endpoints</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for network in results.networks %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ network.name }}</strong>
+                                                {% if network.peer_communication_enabled %}
+                                                    <span class="badge bg-success ms-2">MESH</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary ms-2">HUB</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <code class="text-primary">{{ "%04d-%04d"|format(network.vcid // 10000, network.vcid % 10000) }}</code>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-primary">{{ network.get_network_type_config().get('name', 'Unknown') }}</span>
+                                            </td>
+                                            <td>
+                                                <code>{{ network.subnet }}</code>
+                                                <small class="text-muted d-block">{{ network.expected_users }} users</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-success">{{ network.endpoints|length }}</span>
+                                            </td>
+                                            <td>
+                                                {% if network.is_active %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('network_detail', network_id=network.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if results.endpoints %}
+                        <div class="mb-4">
+                            <h6><i class="fas fa-laptop"></i> Endpoints ({{ results.endpoints|length }})</h6>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Network</th>
+                                            <th>VCID</th>
+                                            <th>IP Address</th>
+                                            <th>Type</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for endpoint in results.endpoints %}
+                                        <tr>
+                                            <td><strong>{{ endpoint.name }}</strong></td>
+                                            <td>
+                                                <a href="{{ url_for('network_detail', network_id=endpoint.vpn_network.id) }}">{{ endpoint.vpn_network.name }}</a>
+                                            </td>
+                                            <td>
+                                                <code class="text-primary">{{ "%04d-%04d"|format(endpoint.vpn_network.vcid // 10000, endpoint.vpn_network.vcid % 10000) }}</code>
+                                            </td>
+                                            <td><code>{{ endpoint.ip_address }}</code></td>
+                                            <td>
+                                                <span class="badge bg-info">{{ endpoint.endpoint_type|title }}</span>
+                                            </td>
+                                            <td>
+                                                {% if endpoint.is_active %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+}
+
+.search-hint {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.search-examples {
+    margin-top: 1rem;
+}
+
+.search-examples code {
+    background-color: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+</style>
+{% endblock %}

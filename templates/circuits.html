@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Circuits - KahLuna WARP Gateway{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-route"></i> Circuit Management
+                        <span class="badge bg-primary ms-2">{{ circuits|length }} circuits</span>
+                    </h5>
+                    <div>
+                        <a href="{{ url_for('search') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-search"></i> Search Circuits
+                        </a>
+                        <a href="{{ url_for('add_network') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add Circuit
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if circuits %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>VCID</th>
+                                        <th>Network Name</th>
+                                        <th>Type</th>
+                                        <th>Topology</th>
+                                        <th>Capacity</th>
+                                        <th>Utilization</th>
+                                        <th>Endpoints</th>
+                                        <th>Rate Limit</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for circuit in circuits %}
+                                    <tr>
+                                        <td>
+                                            <code class="text-primary fw-bold">{{ circuit.vcid_formatted }}</code>
+                                        </td>
+                                        <td>
+                                            <strong>{{ circuit.network.name }}</strong>
+                                            {% if circuit.network.peer_communication_enabled %}
+                                                <span class="badge bg-success ms-2">MESH</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary ms-2">HUB</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">{{ circuit.network.get_network_type_config().get('name', 'Unknown') }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge {% if circuit.statistics.topology == 'mesh' %}bg-success{% else %}bg-info{% endif %}">
+                                                {{ circuit.statistics.topology|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if circuit.capacity %}
+                                                <code>{{ circuit.network.subnet }}</code>
+                                                <small class="text-muted d-block">
+                                                    {{ circuit.capacity.current_info.usable_addresses }} IPs
+                                                    {% if not circuit.capacity.is_optimal %}
+                                                        <i class="fas fa-exclamation-triangle text-warning" title="Suboptimal sizing"></i>
+                                                    {% endif %}
+                                                </small>
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if circuit.capacity %}
+                                                <div class="progress" style="height: 20px; width: 100px;">
+                                                    <div class="progress-bar {% if circuit.statistics.utilization_percent > 80 %}bg-danger{% elif circuit.statistics.utilization_percent > 60 %}bg-warning{% else %}bg-success{% endif %}" 
+                                                         role="progressbar" 
+                                                         style="width: {{ circuit.statistics.utilization_percent }}%"
+                                                         title="{{ '%.1f'|format(circuit.statistics.utilization_percent) }}%">
+                                                        {{ "%.0f"|format(circuit.statistics.utilization_percent) }}%
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success">{{ circuit.statistics.active_endpoints }}</span>
+                                            <small class="text-muted">/ {{ circuit.statistics.total_endpoints }}</small>
+                                            <small class="text-muted d-block">Expected: {{ circuit.statistics.expected_users }}</small>
+                                        </td>
+                                        <td>
+                                            {% if circuit.network.rate_limit_enabled %}
+                                                <span class="badge bg-warning">Limited</span>
+                                                <small class="text-muted d-block">
+                                                    {{ circuit.network.rate_limit_download_mbps }}↓ / {{ circuit.network.rate_limit_upload_mbps }}↑ Mbps
+                                                </small>
+                                            {% else %}
+                                                <span class="badge bg-success">Unlimited</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if circuit.network.is_active %}
+                                                <span class="badge bg-success">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Inactive</span>
+                                            {% endif %}
+                                            {% if circuit.statistics.last_handshake %}
+                                                <small class="text-muted d-block">
+                                                    Last: {{ circuit.statistics.last_handshake.strftime('%m/%d %H:%M') }}
+                                                </small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('network_detail', network_id=circuit.network.id) }}" 
+                                                   class="btn btn-outline-primary" title="View Details">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="{{ url_for('network_rate_limit', network_id=circuit.network.id) }}" 
+                                                   class="btn btn-outline-warning" title="Rate Limit">
+                                                    <i class="fas fa-tachometer-alt"></i>
+                                                </a>
+                                                <button class="btn btn-outline-info" title="Statistics" 
+                                                        onclick="showCircuitStats({{ circuit.network.id }})">
+                                                    <i class="fas fa-chart-line"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-route fa-3x text-muted mb-3"></i>
+                            <h4>No Circuits Found</h4>
+                            <p class="text-muted">Create your first VPN network to establish circuits.</p>
+                            <a href="{{ url_for('add_network') }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Circuit
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Circuit Statistics Modal -->
+    <div class="modal fade" id="circuitStatsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Circuit Statistics</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="circuitStatsContent">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showCircuitStats(networkId) {
+    const modal = new bootstrap.Modal(document.getElementById('circuitStatsModal'));
+    const content = document.getElementById('circuitStatsContent');
+    
+    // Show loading
+    content.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+    
+    modal.show();
+    
+    // Fetch circuit statistics
+    fetch(`/api/networks/${networkId}/statistics`)
+        .then(response => response.json())
+        .then(data => {
+            content.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Network Information</h6>
+                        <table class="table table-sm">
+                            <tr><td>VCID:</td><td><code>${data.vcid}</code></td></tr>
+                            <tr><td>Network Type:</td><td>${data.network_type}</td></tr>
+                            <tr><td>Topology:</td><td>${data.topology}</td></tr>
+                            <tr><td>Expected Users:</td><td>${data.expected_users}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Usage Statistics</h6>
+                        <table class="table table-sm">
+                            <tr><td>Total Endpoints:</td><td>${data.total_endpoints}</td></tr>
+                            <tr><td>Active Endpoints:</td><td>${data.active_endpoints}</td></tr>
+                            <tr><td>Utilization:</td><td>${data.utilization_percent.toFixed(1)}%</td></tr>
+                            <tr><td>Last Handshake:</td><td>${data.last_handshake || 'Never'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <h6>Traffic Statistics</h6>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            Traffic statistics will be available when the system is integrated with actual WireGuard interfaces.
+                        </div>
+                    </div>
+                </div>
+            `;
+        })
+        .catch(error => {
+            content.innerHTML = '<div class="alert alert-danger">Error loading statistics: ' + error.message + '</div>';
+        });
+}
+
+// Auto-refresh every 30 seconds
+setInterval(function() {
+    if (!document.getElementById('circuitStatsModal').classList.contains('show')) {
+        location.reload();
+    }
+}, 30000);
+</script>
+
+<style>
+.progress {
+    background-color: #e9ecef;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.fw-bold {
+    font-weight: 700;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.text-primary {
+    color: #0d6efd !important;
+}
+
+.progress-bar {
+    font-size: 0.75em;
+    line-height: 1;
+}
+</style>
+{% endblock %}

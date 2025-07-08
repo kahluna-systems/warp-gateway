@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Rate Limiting - KahLuna WARP Gateway{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tachometer-alt"></i> 
+                        Rate Limiting Configuration
+                        {% if target_type == 'network' %}
+                            - Network: {{ network.name }}
+                        {% else %}
+                            - Endpoint: {{ endpoint.name }}
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                {{ form.enabled(class="form-check-input") }}
+                                {{ form.enabled.label(class="form-check-label") }}
+                            </div>
+                            <div class="form-text">Enable rate limiting for this {{ target_type }}</div>
+                        </div>
+                        
+                        <div id="rateLimitFields" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        {{ form.download_mbps.label(class="form-label") }}
+                                        <div class="input-group">
+                                            {{ form.download_mbps(class="form-control") }}
+                                            <span class="input-group-text">Mbps</span>
+                                        </div>
+                                        {% if form.download_mbps.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.download_mbps.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">Maximum download speed</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        {{ form.upload_mbps.label(class="form-label") }}
+                                        <div class="input-group">
+                                            {{ form.upload_mbps(class="form-control") }}
+                                            <span class="input-group-text">Mbps</span>
+                                        </div>
+                                        {% if form.upload_mbps.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.upload_mbps.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">Maximum upload speed</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        {{ form.burst_factor.label(class="form-label") }}
+                                        {{ form.burst_factor(class="form-control") }}
+                                        {% if form.burst_factor.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.burst_factor.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">Burst allowance multiplier (1.0 = no burst)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Rate Limiting Information:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>Rate limits are applied using traffic shaping</li>
+                                    <li>Burst factor allows temporary speed increases</li>
+                                    <li>Endpoint limits override network limits</li>
+                                    <li>Changes require endpoint reconnection</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            {% if target_type == 'network' %}
+                                <a href="{{ url_for('network_detail', network_id=network.id) }}" class="btn btn-secondary me-md-2">Cancel</a>
+                            {% else %}
+                                <a href="{{ url_for('endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-secondary me-md-2">Cancel</a>
+                            {% endif %}
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            {% if target_type == 'network' %}
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Network Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Name:</strong></td>
+                                <td>{{ network.name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>VCID:</strong></td>
+                                <td><code>{{ "%04d-%04d"|format(network.vcid // 10000, network.vcid % 10000) }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Type:</strong></td>
+                                <td>{{ network.get_network_type_config().get('name', 'Unknown') }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Subnet:</strong></td>
+                                <td><code>{{ network.subnet }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Endpoints:</strong></td>
+                                <td>{{ network.endpoints|length }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Endpoint Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Name:</strong></td>
+                                <td>{{ endpoint.name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Network:</strong></td>
+                                <td>{{ endpoint.vpn_network.name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>VCID:</strong></td>
+                                <td><code>{{ "%04d-%04d"|format(endpoint.vpn_network.vcid // 10000, endpoint.vpn_network.vcid % 10000) }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>IP Address:</strong></td>
+                                <td><code>{{ endpoint.ip_address }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Type:</strong></td>
+                                <td>{{ endpoint.endpoint_type|title }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Rate Limiting Guidelines</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Common Speed Limits:</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Basic:</strong> 10 Mbps ↓ / 5 Mbps ↑</li>
+                        <li><strong>Standard:</strong> 50 Mbps ↓ / 25 Mbps ↑</li>
+                        <li><strong>Premium:</strong> 100 Mbps ↓ / 50 Mbps ↑</li>
+                        <li><strong>Enterprise:</strong> 1000 Mbps ↓ / 500 Mbps ↑</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Burst Factor:</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>1.0:</strong> No burst allowed</li>
+                        <li><strong>1.5:</strong> 50% burst (recommended)</li>
+                        <li><strong>2.0:</strong> 100% burst</li>
+                    </ul>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Note:</strong> Rate limits are enforced at the network level. Actual speeds may vary based on network conditions.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const enabledCheckbox = document.getElementById('enabled');
+    const rateLimitFields = document.getElementById('rateLimitFields');
+    
+    function toggleFields() {
+        if (enabledCheckbox.checked) {
+            rateLimitFields.style.display = 'block';
+        } else {
+            rateLimitFields.style.display = 'none';
+        }
+    }
+    
+    // Initial state
+    toggleFields();
+    
+    // Listen for changes
+    enabledCheckbox.addEventListener('change', toggleFields);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - KahLuna WARP Gateway{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Server Statistics -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-server fa-2x"></i>
+                        <div class="ms-3">
+                            <h5>{{ stats.server.total_networks }}</h5>
+                            <p class="mb-0">Total Networks</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-laptop fa-2x"></i>
+                        <div class="ms-3">
+                            <h5>{{ stats.server.total_endpoints }}</h5>
+                            <p class="mb-0">Total Endpoints</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-chart-line fa-2x"></i>
+                        <div class="ms-3">
+                            <h5>{{ "%.1f"|format(stats.server.port_utilization) }}%</h5>
+                            <p class="mb-0">Port Utilization</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-clock fa-2x"></i>
+                        <div class="ms-3">
+                            <h5>{{ stats.server.server_uptime }}</h5>
+                            <p class="mb-0">Server Uptime</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Network Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-network-wired"></i> Network Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Network</th>
+                                    <th>VCID</th>
+                                    <th>Type</th>
+                                    <th>Endpoints</th>
+                                    <th>Utilization</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for network_stat in stats.networks %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ network_stat.network.name if network_stat.network else 'Unknown' }}</strong>
+                                        {% if network_stat.peer_communication %}
+                                            <span class="badge bg-success ms-2">MESH</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary ms-2">HUB</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <code class="text-primary">{{ "%04d-%04d"|format(network_stat.vcid // 10000, network_stat.vcid % 10000) }}</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ network_stat.network_type|title }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ network_stat.active_endpoints }}</span>
+                                        <small class="text-muted">/ {{ network_stat.total_endpoints }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar {% if network_stat.utilization_percent > 80 %}bg-danger{% elif network_stat.utilization_percent > 60 %}bg-warning{% else %}bg-success{% endif %}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ network_stat.utilization_percent }}%">
+                                                {{ "%.1f"|format(network_stat.utilization_percent) }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if network_stat.active_endpoints > 0 %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie"></i> Network Distribution
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for network_type, type_stats in stats.server.network_types.items() %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>{{ network_type|title|replace('_', ' ') }}</h6>
+                                    <h4 class="text-primary">{{ type_stats.count }}</h4>
+                                    <p class="mb-0">{{ type_stats.endpoints }} endpoints</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Endpoint Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-laptop"></i> Endpoint Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Network</th>
+                                    <th>VCID</th>
+                                    <th>IP Address</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Last Handshake</th>
+                                    <th>Rate Limit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for endpoint_stat in stats.endpoints %}
+                                <tr>
+                                    <td><strong>{{ endpoint_stat.name }}</strong></td>
+                                    <td>{{ endpoint_stat.network_name }}</td>
+                                    <td>
+                                        <code class="text-primary">{{ "%04d-%04d"|format(endpoint_stat.vcid // 10000, endpoint_stat.vcid % 10000) }}</code>
+                                    </td>
+                                    <td><code>{{ endpoint_stat.ip_address }}</code></td>
+                                    <td>
+                                        <span class="badge bg-info">{{ endpoint_stat.endpoint_type|title }}</span>
+                                    </td>
+                                    <td>
+                                        {% if endpoint_stat.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if endpoint_stat.last_handshake %}
+                                            {{ endpoint_stat.last_handshake.strftime('%Y-%m-%d %H:%M') }}
+                                        {% else %}
+                                            <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if endpoint_stat.rate_limits.enabled %}
+                                            <span class="badge bg-warning">Limited</span>
+                                            <small class="text-muted d-block">{{ endpoint_stat.rate_limits.download_mbps }}↓ / {{ endpoint_stat.rate_limits.upload_mbps }}↑ Mbps</small>
+                                        {% else %}
+                                            <span class="badge bg-success">Unlimited</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Network Utilization</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Average:</strong> {{ "%.1f"|format(stats.summary.network_utilization.average_utilization) }}%</p>
+                    <p><strong>At Capacity:</strong> {{ stats.summary.network_utilization.networks_at_capacity }} networks</p>
+                    <p><strong>Max:</strong> {{ "%.1f"|format(stats.summary.network_utilization.max_utilization) }}%</p>
+                    <p><strong>Min:</strong> {{ "%.1f"|format(stats.summary.network_utilization.min_utilization) }}%</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Endpoint Types</h6>
+                </div>
+                <div class="card-body">
+                    {% for type_name, type_data in stats.summary.endpoint_distribution.by_type.items() %}
+                    <p><strong>{{ type_name|title }}:</strong> {{ type_data.active }}/{{ type_data.count }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">System Health</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Active Networks:</strong> {{ stats.summary.active_networks }}/{{ stats.summary.total_networks }}</p>
+                    <p><strong>Active Endpoints:</strong> {{ stats.summary.active_endpoints }}/{{ stats.summary.total_endpoints }}</p>
+                    <p><strong>Last Updated:</strong> {{ stats.server.last_updated.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh statistics every 30 seconds
+setInterval(function() {
+    fetch('/api/statistics')
+        .then(response => response.json())
+        .then(data => {
+            // Update key metrics without full page reload
+            // This is a placeholder for real-time updates
+            console.log('Statistics updated:', data);
+        })
+        .catch(error => {
+            console.error('Error updating statistics:', error);
+        });
+}, 30000);
+</script>
+
+<style>
+.progress {
+    background-color: #e9ecef;
+}
+
+.card-body h5 {
+    margin-bottom: 0;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+</style>
+{% endblock %}

@@ -3,6 +3,7 @@ import ipaddress
 import subprocess
 import json
 from database import db
+from sqlalchemy import or_
 
 
 # Fixed Network Types - not stored in database
@@ -80,6 +81,43 @@ class ServerConfig(db.Model):
     
     def __repr__(self):
         return f'<ServerConfig {self.hostname}>'
+    
+    def get_statistics(self):
+        """Get server statistics"""
+        networks = VPNNetwork.query.all()
+        endpoints = Endpoint.query.all()
+        
+        active_networks = sum(1 for n in networks if n.is_active)
+        active_endpoints = sum(1 for e in endpoints if e.is_active)
+        
+        # Calculate total capacity and usage
+        total_ports_used = len(networks)
+        total_ports_available = 10  # 51820-51829
+        
+        # Network type breakdown
+        network_types = {}
+        for network in networks:
+            network_type = network.network_type
+            if network_type not in network_types:
+                network_types[network_type] = {'count': 0, 'endpoints': 0}
+            network_types[network_type]['count'] += 1
+            network_types[network_type]['endpoints'] += len(network.endpoints)
+        
+        return {
+            'total_networks': len(networks),
+            'active_networks': active_networks,
+            'total_endpoints': len(endpoints),
+            'active_endpoints': active_endpoints,
+            'port_utilization': (total_ports_used / total_ports_available) * 100,
+            'network_types': network_types,
+            'server_uptime': self.get_uptime(),
+            'last_updated': datetime.utcnow()
+        }
+    
+    def get_uptime(self):
+        """Get server uptime (stub implementation)"""
+        # In production, this would get actual system uptime
+        return "N/A (Development Mode)"
 
 
 class VPNNetwork(db.Model):
@@ -108,6 +146,12 @@ class VPNNetwork(db.Model):
     expected_users = db.Column(db.Integer, default=1)  # For dynamic subnet sizing
     vrf_name = db.Column(db.String(50))  # Linux VRF namespace name
     routing_table_id = db.Column(db.Integer)  # Dedicated routing table
+    
+    # Rate limiting fields
+    rate_limit_enabled = db.Column(db.Boolean, default=False)
+    rate_limit_download_mbps = db.Column(db.Float)
+    rate_limit_upload_mbps = db.Column(db.Float)
+    rate_limit_burst_factor = db.Column(db.Float, default=1.5)
     
     endpoints = db.relationship('Endpoint', backref='vpn_network', lazy=True, cascade='all, delete-orphan')
     
@@ -372,6 +416,73 @@ class VPNNetwork(db.Model):
             'is_optimal': current_prefix == recommended_prefix,
             'can_accommodate': subnet_info['usable_addresses'] >= self.expected_users
         }
+    
+    def get_statistics(self):
+        """Get network statistics"""
+        endpoint_count = len(self.endpoints)
+        active_endpoints = sum(1 for e in self.endpoints if e.is_active)
+        
+        # Calculate utilization
+        subnet_info = self.get_dynamic_subnet_info()
+        if subnet_info:
+            utilization = (endpoint_count / subnet_info['current_info']['usable_addresses']) * 100
+        else:
+            utilization = 0
+        
+        return {
+            'vcid': self.vcid,
+            'total_endpoints': endpoint_count,
+            'active_endpoints': active_endpoints,
+            'utilization_percent': utilization,
+            'network_type': self.network_type,
+            'topology': self.get_topology_mode(),
+            'expected_users': self.expected_users,
+            'peer_communication': self.peer_communication_enabled,
+            'last_handshake': self.get_last_handshake(),
+            'bytes_transferred': self.get_bytes_transferred()  # Stub for now
+        }
+    
+    def get_last_handshake(self):
+        """Get last handshake time across all endpoints"""
+        last_handshakes = [e.last_handshake for e in self.endpoints if e.last_handshake]
+        return max(last_handshakes) if last_handshakes else None
+    
+    def get_bytes_transferred(self):
+        """Get total bytes transferred (stub implementation)"""
+        # In production, this would query actual WireGuard statistics
+        return {'rx_bytes': 0, 'tx_bytes': 0}
+    
+    @staticmethod
+    def search(query, search_type='all'):
+        """Search networks by various criteria"""
+        base_query = VPNNetwork.query
+        
+        if search_type == 'all' or search_type == 'networks':
+            # Search by name, network type, or subnet
+            network_results = base_query.filter(
+                or_(
+                    VPNNetwork.name.ilike(f'%{query}%'),
+                    VPNNetwork.network_type.ilike(f'%{query}%'),
+                    VPNNetwork.subnet.ilike(f'%{query}%')
+                )
+            ).all()
+        else:
+            network_results = []
+        
+        if search_type == 'all' or search_type == 'vcids':
+            # Search by VCID (handle both formatted and raw)
+            vcid_query = query.replace('-', '').replace(' ', '')
+            try:
+                vcid_int = int(vcid_query)
+                vcid_results = base_query.filter(VPNNetwork.vcid == vcid_int).all()
+            except ValueError:
+                vcid_results = []
+        else:
+            vcid_results = []
+        
+        # Combine results and remove duplicates
+        all_results = list(set(network_results + vcid_results))
+        return all_results
 
 
 class Endpoint(db.Model):
@@ -390,6 +501,12 @@ class Endpoint(db.Model):
     
     # New endpoint type field
     endpoint_type = db.Column(db.String(20), default='mobile')  # mobile, cpe, gateway
+    
+    # Rate limiting fields
+    rate_limit_enabled = db.Column(db.Boolean, default=False)
+    rate_limit_download_mbps = db.Column(db.Float)
+    rate_limit_upload_mbps = db.Column(db.Float)
+    rate_limit_burst_factor = db.Column(db.Float, default=1.5)
     
     configs = db.relationship('EndpointConfig', backref='endpoint', lazy=True, cascade='all, delete-orphan')
     
@@ -472,6 +589,74 @@ class Endpoint(db.Model):
         """Generate WireGuard config for this endpoint"""
         from utils import generate_endpoint_config
         return generate_endpoint_config(self)
+    
+    def get_statistics(self):
+        """Get endpoint statistics"""
+        return {
+            'endpoint_id': self.id,
+            'name': self.name,
+            'network_name': self.vpn_network.name,
+            'vcid': self.vpn_network.vcid,
+            'ip_address': self.ip_address,
+            'endpoint_type': self.endpoint_type,
+            'is_active': self.is_active,
+            'last_handshake': self.last_handshake,
+            'bytes_transferred': self.get_bytes_transferred(),
+            'connection_uptime': self.get_connection_uptime(),
+            'rate_limits': self.get_rate_limits()
+        }
+    
+    def get_bytes_transferred(self):
+        """Get bytes transferred for this endpoint (stub implementation)"""
+        # In production, this would query actual WireGuard statistics
+        return {'rx_bytes': 0, 'tx_bytes': 0}
+    
+    def get_connection_uptime(self):
+        """Get connection uptime (stub implementation)"""
+        if self.last_handshake:
+            return datetime.utcnow() - self.last_handshake
+        return None
+    
+    def get_rate_limits(self):
+        """Get rate limits for this endpoint"""
+        # Check endpoint-specific rate limits first, then network-level
+        if self.rate_limit_enabled:
+            return {
+                'download_mbps': self.rate_limit_download_mbps,
+                'upload_mbps': self.rate_limit_upload_mbps,
+                'burst_factor': self.rate_limit_burst_factor,
+                'enabled': True,
+                'source': 'endpoint'
+            }
+        elif self.vpn_network.rate_limit_enabled:
+            return {
+                'download_mbps': self.vpn_network.rate_limit_download_mbps,
+                'upload_mbps': self.vpn_network.rate_limit_upload_mbps,
+                'burst_factor': self.vpn_network.rate_limit_burst_factor,
+                'enabled': True,
+                'source': 'network'
+            }
+        else:
+            return {'enabled': False, 'source': 'none'}
+    
+    @staticmethod
+    def search(query, search_type='all'):
+        """Search endpoints by various criteria"""
+        base_query = Endpoint.query
+        
+        if search_type == 'all' or search_type == 'endpoints':
+            # Search by name, IP address, or endpoint type
+            endpoint_results = base_query.filter(
+                or_(
+                    Endpoint.name.ilike(f'%{query}%'),
+                    Endpoint.ip_address.ilike(f'%{query}%'),
+                    Endpoint.endpoint_type.ilike(f'%{query}%')
+                )
+            ).all()
+        else:
+            endpoint_results = []
+        
+        return endpoint_results
 
 
 class EndpointConfig(db.Model):

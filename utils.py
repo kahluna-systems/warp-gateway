@@ -11,6 +11,7 @@ import tempfile
 import os
 import random
 import math
+from datetime import timedelta
 
 
 def generate_keypair():
@@ -632,6 +633,228 @@ def generate_routing_table_id(network_id):
     """
     # Start from 1000 to avoid conflicts with system tables
     return 1000 + network_id
+
+
+# Search and Statistics Functions
+
+def perform_universal_search(query, search_type='all'):
+    """Perform universal search across networks, endpoints, and VCIDs
+    
+    Args:
+        query (str): Search query
+        search_type (str): Type of search ('all', 'networks', 'endpoints', 'vcids')
+        
+    Returns:
+        dict: Search results organized by type
+    """
+    from models import VPNNetwork, Endpoint
+    
+    results = {
+        'networks': [],
+        'endpoints': [],
+        'total_results': 0
+    }
+    
+    # Search networks
+    if search_type in ['all', 'networks', 'vcids']:
+        network_results = VPNNetwork.search(query, search_type)
+        results['networks'] = network_results
+    
+    # Search endpoints
+    if search_type in ['all', 'endpoints']:
+        endpoint_results = Endpoint.search(query, search_type)
+        results['endpoints'] = endpoint_results
+    
+    results['total_results'] = len(results['networks']) + len(results['endpoints'])
+    
+    return results
+
+
+def get_system_statistics():
+    """Get comprehensive system statistics
+    
+    Returns:
+        dict: System statistics
+    """
+    from models import ServerConfig, VPNNetwork, Endpoint
+    
+    server_config = ServerConfig.query.first()
+    if not server_config:
+        return {'error': 'Server not configured'}
+    
+    networks = VPNNetwork.query.all()
+    endpoints = Endpoint.query.all()
+    
+    # Calculate network statistics
+    network_stats = []
+    for network in networks:
+        network_stats.append(network.get_statistics())
+    
+    # Calculate endpoint statistics
+    endpoint_stats = []
+    for endpoint in endpoints:
+        endpoint_stats.append(endpoint.get_statistics())
+    
+    return {
+        'server': server_config.get_statistics(),
+        'networks': network_stats,
+        'endpoints': endpoint_stats,
+        'summary': {
+            'total_networks': len(networks),
+            'total_endpoints': len(endpoints),
+            'active_networks': sum(1 for n in networks if n.is_active),
+            'active_endpoints': sum(1 for e in endpoints if e.is_active),
+            'network_utilization': calculate_network_utilization(networks),
+            'endpoint_distribution': calculate_endpoint_distribution(endpoints)
+        }
+    }
+
+
+def calculate_network_utilization(networks):
+    """Calculate overall network utilization
+    
+    Args:
+        networks (list): List of VPNNetwork objects
+        
+    Returns:
+        dict: Network utilization statistics
+    """
+    if not networks:
+        return {'average_utilization': 0, 'networks_at_capacity': 0}
+    
+    utilizations = []
+    at_capacity = 0
+    
+    for network in networks:
+        stats = network.get_statistics()
+        utilization = stats.get('utilization_percent', 0)
+        utilizations.append(utilization)
+        
+        if utilization >= 90:
+            at_capacity += 1
+    
+    return {
+        'average_utilization': sum(utilizations) / len(utilizations),
+        'networks_at_capacity': at_capacity,
+        'max_utilization': max(utilizations) if utilizations else 0,
+        'min_utilization': min(utilizations) if utilizations else 0
+    }
+
+
+def calculate_endpoint_distribution(endpoints):
+    """Calculate endpoint distribution by type and network
+    
+    Args:
+        endpoints (list): List of Endpoint objects
+        
+    Returns:
+        dict: Endpoint distribution statistics
+    """
+    if not endpoints:
+        return {'by_type': {}, 'by_network': {}}
+    
+    by_type = {}
+    by_network = {}
+    
+    for endpoint in endpoints:
+        # By type
+        endpoint_type = endpoint.endpoint_type
+        if endpoint_type not in by_type:
+            by_type[endpoint_type] = {'count': 0, 'active': 0}
+        by_type[endpoint_type]['count'] += 1
+        if endpoint.is_active:
+            by_type[endpoint_type]['active'] += 1
+        
+        # By network
+        network_name = endpoint.vpn_network.name
+        if network_name not in by_network:
+            by_network[network_name] = {'count': 0, 'active': 0}
+        by_network[network_name]['count'] += 1
+        if endpoint.is_active:
+            by_network[network_name]['active'] += 1
+    
+    return {
+        'by_type': by_type,
+        'by_network': by_network
+    }
+
+
+def get_network_capacity_info(network):
+    """Get detailed capacity information for a network
+    
+    Args:
+        network: VPNNetwork object
+        
+    Returns:
+        dict: Capacity information
+    """
+    subnet_info = network.get_dynamic_subnet_info()
+    if not subnet_info:
+        return None
+    
+    current_endpoints = len(network.endpoints)
+    max_endpoints = subnet_info['current_info']['usable_addresses']
+    
+    return {
+        'current_endpoints': current_endpoints,
+        'max_endpoints': max_endpoints,
+        'utilization_percent': (current_endpoints / max_endpoints) * 100 if max_endpoints > 0 else 0,
+        'remaining_capacity': max_endpoints - current_endpoints,
+        'expected_users': network.expected_users,
+        'is_optimal_size': subnet_info['is_optimal'],
+        'recommended_prefix': subnet_info['recommended_prefix']
+    }
+
+
+def format_bytes(bytes_value):
+    """Format bytes into human-readable format
+    
+    Args:
+        bytes_value (int): Number of bytes
+        
+    Returns:
+        str: Formatted string (e.g., '1.2 GB')
+    """
+    if bytes_value == 0:
+        return '0 B'
+    
+    units = ['B', 'KB', 'MB', 'GB', 'TB']
+    for unit in units:
+        if bytes_value < 1024:
+            return f'{bytes_value:.1f} {unit}'
+        bytes_value /= 1024
+    
+    return f'{bytes_value:.1f} PB'
+
+
+def format_duration(seconds):
+    """Format duration in seconds into human-readable format
+    
+    Args:
+        seconds (int): Duration in seconds
+        
+    Returns:
+        str: Formatted duration (e.g., '2d 3h 45m')
+    """
+    if seconds is None:
+        return 'N/A'
+    
+    if isinstance(seconds, timedelta):
+        seconds = seconds.total_seconds()
+    
+    days = int(seconds // 86400)
+    hours = int((seconds % 86400) // 3600)
+    minutes = int((seconds % 3600) // 60)
+    
+    parts = []
+    if days > 0:
+        parts.append(f'{days}d')
+    if hours > 0:
+        parts.append(f'{hours}h')
+    if minutes > 0 or not parts:
+        parts.append(f'{minutes}m')
+    
+    return ' '.join(parts)
 
 
 def generate_hub_and_spoke_config(endpoint):
