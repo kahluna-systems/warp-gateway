@@ -97,8 +97,86 @@
                         <div class="form-text">Leave empty to use default allowed IPs for the selected network type.</div>
                     </div>
                     
+                    <!-- VRF Configuration Section -->
+                    <div class="card bg-primary bg-opacity-10">
+                        <div class="card-header">
+                            <h6 class="mb-0">VRF Configuration</h6>
+                            <small class="text-muted">Virtual Routing and Forwarding settings for network isolation</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        {{ form.expected_users.label(class="form-label") }}
+                                        {{ form.expected_users(class="form-control", placeholder="1") }}
+                                        {% if form.expected_users.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.expected_users.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">Expected number of users for dynamic subnet sizing</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        {{ form.vrf_name.label(class="form-label") }}
+                                        {{ form.vrf_name(class="form-control", placeholder="Auto-generated") }}
+                                        {% if form.vrf_name.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.vrf_name.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">VRF namespace name (optional)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            {{ form.peer_communication_enabled(class="form-check-input") }}
+                                            {{ form.peer_communication_enabled.label(class="form-check-label") }}
+                                        </div>
+                                        {% if form.peer_communication_enabled.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.peer_communication_enabled.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">Allow endpoints to communicate with each other (Secure Internet only)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        {{ form.routing_table_id.label(class="form-label") }}
+                                        {{ form.routing_table_id(class="form-control", placeholder="Auto-generated") }}
+                                        {% if form.routing_table_id.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.routing_table_id.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">Routing table ID (1000-65535, optional)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>VCID:</strong> A unique 8-digit Virtual Circuit ID will be automatically generated for network tracking and monitoring.
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- VLAN Configuration Section -->
-                    <div class="card bg-light">
+                    <div class="card bg-light mt-3">
                         <div class="card-header">
                             <h6 class="mb-0">VLAN Configuration (Optional)</h6>
                             <small class="text-muted">For Layer 2 networks requiring VLAN isolation</small>

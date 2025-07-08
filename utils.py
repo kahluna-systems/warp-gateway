@@ -9,6 +9,8 @@ import ipaddress
 import subprocess
 import tempfile
 import os
+import random
+import math
 
 
 def generate_keypair():
@@ -40,7 +42,7 @@ def generate_preshared_key():
 
 
 def generate_endpoint_config(endpoint):
-    """Generate WireGuard config for an endpoint"""
+    """Generate WireGuard config for an endpoint with proper topology support"""
     from models import ServerConfig
     
     # Get server configuration
@@ -49,7 +51,10 @@ def generate_endpoint_config(endpoint):
         raise ValueError("Server not configured - run server initialization first")
     
     network = endpoint.vpn_network
-    allowed_ips = network.get_allowed_ips()
+    topology_mode = network.get_topology_mode()
+    
+    # Generate AllowedIPs based on topology and network type
+    allowed_ips = generate_allowed_ips_for_endpoint(endpoint, topology_mode)
     
     config = f"""[Interface]
 PrivateKey = {endpoint.private_key}
@@ -67,7 +72,49 @@ Endpoint = {server_config.public_ip}:{network.port}
     
     config += "PersistentKeepalive = 25\n"
     
+    # Add VRF information as comments for troubleshooting
+    config += f"\n# VRF Information\n"
+    config += f"# VCID: {network.vcid}\n"
+    config += f"# Topology: {topology_mode}\n"
+    config += f"# Network Type: {network.network_type}\n"
+    if network.peer_communication_enabled:
+        config += f"# Peer Communication: Enabled\n"
+    
     return config
+
+
+def generate_allowed_ips_for_endpoint(endpoint, topology_mode):
+    """Generate AllowedIPs configuration based on topology and network type"""
+    network = endpoint.vpn_network
+    network_config = network.get_network_type_config()
+    
+    # Check for custom allowed IPs first
+    if network.custom_allowed_ips:
+        return network.custom_allowed_ips
+    
+    # Handle different network types and topologies
+    if network.network_type == 'secure_internet':
+        if topology_mode == 'mesh':
+            # Mesh mode: Full internet access + network subnet for peer communication
+            return f"0.0.0.0/0, ::/0"
+        else:
+            # Hub-and-spoke mode: Only internet traffic via gateway
+            return "0.0.0.0/0, ::/0"
+    
+    elif network.network_type == 'remote_resource_gw':
+        # Split tunnel: Only specific corporate subnets
+        return network_config.get('allowed_ips', '10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16')
+    
+    elif network.network_type == 'l3vpn_gateway':
+        # L3VPN: Full mesh routing
+        return "0.0.0.0/0"
+    
+    elif network.network_type in ['l2_point_to_point', 'l2_mesh']:
+        # Layer 2 networks: Allow all traffic (transparent bridging)
+        return "0.0.0.0/0"
+    
+    # Fallback to network type default
+    return network_config.get('allowed_ips', '0.0.0.0/0')
 
 
 def generate_qr_code(config_content):
@@ -381,3 +428,273 @@ def get_next_available_subnet(network_type, exclude_network_id=None):
             return str(subnet)
     
     return None
+
+
+# VRF-Related Utility Functions
+
+def generate_vcid():
+    """Generate a unique 8-digit Virtual Circuit ID"""
+    return random.randint(10000000, 99999999)
+
+
+def format_vcid(vcid):
+    """Format VCID for display with separators
+    
+    Args:
+        vcid (int): 8-digit VCID
+        
+    Returns:
+        str: Formatted VCID (e.g., '1234-5678')
+    """
+    vcid_str = str(vcid)
+    return f"{vcid_str[:4]}-{vcid_str[4:]}"
+
+
+def parse_vcid(vcid_str):
+    """Parse VCID from formatted string
+    
+    Args:
+        vcid_str (str): Formatted VCID string
+        
+    Returns:
+        int: VCID as integer
+    """
+    # Remove any non-digit characters
+    import re
+    digits_only = re.sub(r'\D', '', vcid_str)
+    return int(digits_only) if digits_only else None
+
+
+def generate_unique_vcid():
+    """Generate a unique 8-digit VCID that doesn't conflict with existing ones"""
+    from models import VPNNetwork
+    
+    max_attempts = 100
+    for _ in range(max_attempts):
+        vcid = generate_vcid()
+        
+        # Check if VCID already exists
+        existing = VPNNetwork.query.filter(VPNNetwork.vcid == vcid).first()
+        if not existing:
+            return vcid
+    
+    raise ValueError("Could not generate unique VCID after maximum attempts")
+
+
+def calculate_dynamic_subnet_size(expected_users):
+    """Calculate appropriate subnet size based on expected users
+    
+    Args:
+        expected_users (int): Expected number of users
+        
+    Returns:
+        int: Prefix length for subnet (e.g., 24 for /24)
+    """
+    if expected_users <= 0:
+        return 30  # /30 for minimal setup
+    
+    # Need to account for:
+    # - Gateway IP (1)
+    # - Network/broadcast addresses (2)
+    # - Some overhead for growth (20%)
+    required_ips = math.ceil(expected_users * 1.2) + 3
+    
+    # Calculate minimum prefix length needed
+    # We need 2^(32-prefix) >= required_ips
+    # So prefix <= 32 - log2(required_ips)
+    min_prefix = 32 - math.ceil(math.log2(required_ips))
+    
+    # Dynamic subnet allocation based on user count
+    if expected_users <= 2:
+        return 30  # /30 (2 hosts)
+    elif expected_users <= 6:
+        return 29  # /29 (6 hosts)
+    elif expected_users <= 14:
+        return 28  # /28 (14 hosts)
+    elif expected_users <= 30:
+        return 27  # /27 (30 hosts)
+    elif expected_users <= 62:
+        return 26  # /26 (62 hosts)
+    elif expected_users <= 126:
+        return 25  # /25 (126 hosts)
+    elif expected_users <= 254:
+        return 24  # /24 (254 hosts)
+    else:
+        return 23  # /23 (510 hosts) - maximum reasonable size
+
+
+def get_dynamic_subnet_for_network(network_type, expected_users, exclude_network_id=None):
+    """Get dynamically sized subnet for a network based on expected users
+    
+    Args:
+        network_type (str): Type of network
+        expected_users (int): Expected number of users
+        exclude_network_id (int): Network ID to exclude from conflict checking
+        
+    Returns:
+        str: Subnet string (e.g., '10.100.1.0/24')
+    """
+    pools = generate_subnet_pools()
+    
+    if network_type not in pools:
+        return None
+    
+    # For Secure Internet with peer communication enabled, use dynamic sizing
+    if network_type == 'secure_internet' and expected_users > 1:
+        pool = pools[network_type]
+        base_network = ipaddress.ip_network(pool['base_network'])
+        subnet_size = calculate_dynamic_subnet_size(expected_users)
+        
+        from models import VPNNetwork
+        
+        query = VPNNetwork.query.filter(VPNNetwork.network_type == network_type)
+        
+        if exclude_network_id:
+            query = query.filter(VPNNetwork.id != exclude_network_id)
+        
+        used_subnets = {subnet.subnet for subnet in query.all()}
+        
+        # Generate subnets of the calculated size
+        for subnet in base_network.subnets(new_prefix=subnet_size):
+            if str(subnet) not in used_subnets:
+                return str(subnet)
+        
+        return None
+    
+    # For other network types, use the default allocation
+    return get_next_available_subnet(network_type, exclude_network_id)
+
+
+def validate_expected_users(expected_users):
+    """Validate expected users count
+    
+    Args:
+        expected_users (int): Expected number of users
+        
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    try:
+        count = int(expected_users)
+        return 1 <= count <= 1000  # Reasonable range
+    except (ValueError, TypeError):
+        return False
+
+
+def get_subnet_info(subnet_str):
+    """Get information about a subnet
+    
+    Args:
+        subnet_str (str): Subnet string (e.g., '10.100.1.0/24')
+        
+    Returns:
+        dict: Information about the subnet
+    """
+    try:
+        network = ipaddress.ip_network(subnet_str, strict=False)
+        return {
+            'network_address': str(network.network_address),
+            'broadcast_address': str(network.broadcast_address),
+            'gateway_ip': str(network.network_address + 1),
+            'prefix_length': network.prefixlen,
+            'total_addresses': network.num_addresses,
+            'usable_addresses': network.num_addresses - 2,
+            'first_usable': str(network.network_address + 1),
+            'last_usable': str(network.broadcast_address - 1)
+        }
+    except ValueError:
+        return None
+
+
+def generate_vrf_name(network_name):
+    """Generate VRF namespace name for a network
+    
+    Args:
+        network_name (str): Network name
+        
+    Returns:
+        str: VRF namespace name
+    """
+    # Replace non-alphanumeric characters with hyphens
+    import re
+    clean_name = re.sub(r'[^a-zA-Z0-9]', '-', network_name.lower())
+    return f"vrf-{clean_name}"
+
+
+def generate_routing_table_id(network_id):
+    """Generate routing table ID for a network
+    
+    Args:
+        network_id (int): Network ID
+        
+    Returns:
+        int: Routing table ID
+    """
+    # Start from 1000 to avoid conflicts with system tables
+    return 1000 + network_id
+
+
+def generate_hub_and_spoke_config(endpoint):
+    """Generate WireGuard config for hub-and-spoke topology
+    
+    In hub-and-spoke mode:
+    - Endpoints can only communicate with the gateway
+    - No peer-to-peer communication
+    - Gateway acts as the central hub
+    """
+    network = endpoint.vpn_network
+    
+    if network.network_type == 'secure_internet':
+        # For secure internet, route all traffic through gateway
+        return "0.0.0.0/0, ::/0"
+    elif network.network_type == 'remote_resource_gw':
+        # For remote resource gateway, only route specific subnets
+        return network.get_network_type_config().get('allowed_ips', '10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16')
+    else:
+        # For other types, use default behavior
+        return network.get_allowed_ips()
+
+
+def generate_mesh_config(endpoint):
+    """Generate WireGuard config for mesh topology
+    
+    In mesh mode:
+    - Endpoints can communicate with each other
+    - Full peer-to-peer communication
+    - Gateway also participates in the mesh
+    """
+    network = endpoint.vpn_network
+    
+    if network.network_type == 'secure_internet':
+        # For secure internet mesh, allow full internet + peer communication
+        return "0.0.0.0/0, ::/0"
+    else:
+        # For other mesh types, use full routing
+        return "0.0.0.0/0"
+
+
+def validate_network_topology(network):
+    """Validate that network topology configuration is consistent
+    
+    Args:
+        network: VPNNetwork instance
+        
+    Returns:
+        list: List of validation errors
+    """
+    errors = []
+    
+    # Check peer communication setting consistency
+    if network.peer_communication_enabled and network.network_type != 'secure_internet':
+        errors.append("Peer communication can only be enabled for Secure Internet networks")
+    
+    # Check expected users vs subnet size
+    subnet_info = get_subnet_info(network.subnet)
+    if subnet_info and network.expected_users > subnet_info['usable_addresses']:
+        errors.append(f"Expected users ({network.expected_users}) exceeds subnet capacity ({subnet_info['usable_addresses']})")
+    
+    # Check VLAN configuration for L2 networks
+    if network.requires_vlan_support() and not network.vlan_id:
+        errors.append(f"VLAN ID is required for {network.network_type} networks")
+    
+    return errors

@@ -21,6 +21,12 @@ class VPNNetworkForm(FlaskForm):
     vlan_range = StringField('VLAN Range', validators=[Optional(), Length(max=50)])
     bridge_name = StringField('Bridge Name', validators=[Optional(), Length(max=50)])
     
+    # New VRF fields
+    peer_communication_enabled = BooleanField('Enable Peer Communication', default=False)
+    expected_users = IntegerField('Expected Users', validators=[DataRequired(), NumberRange(min=1, max=1000)], default=1)
+    vrf_name = StringField('VRF Name', validators=[Optional(), Length(max=50)])
+    routing_table_id = IntegerField('Routing Table ID', validators=[Optional(), NumberRange(min=1000, max=65535)])
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Populate network type choices from fixed types
@@ -33,6 +39,12 @@ class VPNNetworkForm(FlaskForm):
         existing = VPNNetwork.query.filter_by(name=field.data).first()
         if existing:
             raise ValidationError('Network name already exists.')
+    
+    def validate_peer_communication_enabled(self, field):
+        # Peer communication toggle only valid for Secure Internet networks
+        if field.data and hasattr(self, 'network_type') and self.network_type.data:
+            if self.network_type.data != 'secure_internet':
+                raise ValidationError('Peer communication toggle only available for Secure Internet networks.')
     
     def validate_port(self, field):
         # Check for unique port
@@ -49,6 +61,27 @@ class VPNNetworkForm(FlaskForm):
                 raise ValidationError('Subnet too small (minimum /30).')
         except ValueError:
             raise ValidationError('Invalid subnet format.')
+    
+    def validate_expected_users(self, field):
+        # Validate expected users count
+        if field.data and field.data < 1:
+            raise ValidationError('Expected users must be at least 1.')
+        if field.data and field.data > 1000:
+            raise ValidationError('Expected users cannot exceed 1000.')
+    
+    def validate_vrf_name(self, field):
+        # Validate VRF name format
+        if field.data:
+            import re
+            if not re.match(r'^[a-zA-Z0-9-]+$', field.data):
+                raise ValidationError('VRF name can only contain letters, numbers, and hyphens.')
+    
+    def validate_routing_table_id(self, field):
+        # Check for unique routing table ID
+        if field.data:
+            existing = VPNNetwork.query.filter_by(routing_table_id=field.data).first()
+            if existing:
+                raise ValidationError('Routing table ID already in use.')
 
 
 class EndpointForm(FlaskForm):

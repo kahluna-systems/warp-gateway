@@ -25,6 +25,7 @@
                             <tr>
                                 <th>Name</th>
                                 <th>Network Type</th>
+                                <th>VCID</th>
                                 <th>Port</th>
                                 <th>Subnet</th>
                                 <th>Endpoints</th>
@@ -35,12 +36,25 @@
                         <tbody>
                             {% for network in networks %}
                             <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                <td><strong>{{ network.name }}</strong></td>
+                                <td>
+                                    <strong>{{ network.name }}</strong>
+                                    {% if network.peer_communication_enabled %}
+                                        <span class="badge bg-success ms-2" title="Peer Communication Enabled">MESH</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary ms-2" title="Hub and Spoke">HUB</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <span class="badge bg-primary">{{ network.get_network_type_config().get('name', 'Unknown') }}</span>
                                 </td>
+                                <td>
+                                    <code class="text-primary">{{ "%04d-%04d"|format(network.vcid // 10000, network.vcid % 10000) }}</code>
+                                </td>
                                 <td><code>{{ network.port }}</code></td>
-                                <td><code>{{ network.subnet }}</code></td>
+                                <td>
+                                    <code>{{ network.subnet }}</code>
+                                    <small class="text-muted d-block">{{ network.expected_users }} users</small>
+                                </td>
                                 <td>
                                     <span class="badge bg-success">{{ network.endpoints|length }} endpoints</span>
                                 </td>

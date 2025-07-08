@@ -71,6 +71,8 @@ def add_network():
     form = VPNNetworkForm()
     if form.validate_on_submit():
         private_key, public_key = generate_keypair()
+        
+        # Create network with VRF fields
         network = VPNNetwork(
             name=form.name.data,
             port=form.port.data,
@@ -81,15 +83,24 @@ def add_network():
             custom_allowed_ips=form.custom_allowed_ips.data,
             vlan_id=form.vlan_id.data,
             vlan_range=form.vlan_range.data,
-            bridge_name=form.bridge_name.data
+            bridge_name=form.bridge_name.data,
+            # New VRF fields
+            peer_communication_enabled=form.peer_communication_enabled.data,
+            expected_users=form.expected_users.data,
+            vrf_name=form.vrf_name.data,
+            routing_table_id=form.routing_table_id.data
         )
+        
+        # Auto-populate VRF fields if not provided
+        network.populate_vrf_fields()
+        
         db.session.add(network)
         db.session.commit()
         
         # In development, we won't actually create the network
         # network.create_network()  # This would be called in production
         
-        flash('VPN Network added successfully!', 'success')
+        flash(f'VPN Network added successfully! VCID: {network.vcid}', 'success')
         return redirect(url_for('networks'))
     return render_template('add_network.html', form=form)
 

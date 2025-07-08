@@ -102,6 +102,13 @@ class VPNNetwork(db.Model):
     bridge_name = db.Column(db.String(50))  # Custom bridge name
     vni_pool = db.Column(db.String(100))  # VNI pool for VXLAN
     
+    # New VRF-related fields
+    vcid = db.Column(db.Integer, unique=True, nullable=False)  # 8-digit Virtual Circuit ID
+    peer_communication_enabled = db.Column(db.Boolean, default=False)  # For Secure Internet toggle
+    expected_users = db.Column(db.Integer, default=1)  # For dynamic subnet sizing
+    vrf_name = db.Column(db.String(50))  # Linux VRF namespace name
+    routing_table_id = db.Column(db.Integer)  # Dedicated routing table
+    
     endpoints = db.relationship('Endpoint', backref='vpn_network', lazy=True, cascade='all, delete-orphan')
     
     def __repr__(self):
@@ -115,6 +122,16 @@ class VPNNetwork(db.Model):
         """Get allowed IPs for this interface (custom or default)"""
         if self.custom_allowed_ips:
             return self.custom_allowed_ips
+        
+        # For Secure Internet networks, consider peer communication setting
+        if self.network_type == 'secure_internet':
+            if self.peer_communication_enabled:
+                # Mesh mode: allow full communication
+                return '0.0.0.0/0'
+            else:
+                # Hub-and-spoke mode: only internet traffic
+                return '0.0.0.0/0'
+        
         return self.get_network_type_config().get('allowed_ips', '0.0.0.0/0')
     
     def get_next_ip(self):
@@ -314,6 +331,47 @@ class VPNNetwork(db.Model):
     def requires_vlan_support(self):
         """Check if this network type requires VLAN support"""
         return self.network_type in ['l2_mesh', 'l2_point_to_point']
+    
+    def populate_vrf_fields(self):
+        """Auto-populate VRF fields if not already set"""
+        from utils import generate_unique_vcid, generate_vrf_name, generate_routing_table_id
+        
+        if not self.vcid:
+            self.vcid = generate_unique_vcid()
+        
+        if not self.vrf_name:
+            self.vrf_name = generate_vrf_name(self.name)
+        
+        if not self.routing_table_id:
+            self.routing_table_id = generate_routing_table_id(self.id or 0)
+    
+    def get_topology_mode(self):
+        """Get network topology mode based on type and peer communication setting"""
+        if self.network_type == 'secure_internet':
+            return 'mesh' if self.peer_communication_enabled else 'hub-and-spoke'
+        
+        network_config = self.get_network_type_config()
+        return 'mesh' if network_config.get('peer_to_peer', False) else 'hub-and-spoke'
+    
+    def get_dynamic_subnet_info(self):
+        """Get information about dynamic subnet sizing"""
+        from utils import get_subnet_info, calculate_dynamic_subnet_size
+        
+        subnet_info = get_subnet_info(self.subnet)
+        if not subnet_info:
+            return None
+        
+        # Calculate recommended size based on expected users
+        recommended_prefix = calculate_dynamic_subnet_size(self.expected_users)
+        current_prefix = subnet_info['prefix_length']
+        
+        return {
+            'current_info': subnet_info,
+            'expected_users': self.expected_users,
+            'recommended_prefix': recommended_prefix,
+            'is_optimal': current_prefix == recommended_prefix,
+            'can_accommodate': subnet_info['usable_addresses'] >= self.expected_users
+        }
 
 
 class Endpoint(db.Model):
