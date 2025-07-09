@@ -191,7 +191,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/warp-gateway
 Environment=FLASK_ENV=production
-ExecStart=/opt/warp-gateway/venv/bin/gunicorn -w 4 -b 0.0.0.0:80 app:app
+ExecStart=/opt/warp-gateway/venv/bin/gunicorn -w 4 -b 127.0.0.1:5000 app:app
 Restart=always
 RestartSec=3
 
@@ -236,9 +236,9 @@ def full_server_initialization():
     if not configure_firewall():
         print("Warning: Firewall configuration failed")
     
-    # Create systemd service
-    if not create_systemd_service():
-        print("Warning: Systemd service creation failed")
+    # Create systemd service (handled by deploy.sh in production)
+    # if not create_systemd_service():
+    #     print("Warning: Systemd service creation failed")
     
     print("\n" + "="*60)
     print("KahLuna WARP VPN Gateway initialized successfully!")
