@@ -169,9 +169,12 @@
                     <button class="btn btn-outline-warning btn-sm">
                         <i class="fas fa-edit"></i> Edit Network
                     </button>
-                    <button class="btn btn-outline-danger btn-sm">
-                        <i class="fas fa-trash"></i> Delete Network
-                    </button>
+                    <form method="POST" action="{{ url_for('delete_network', network_id=network.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete network \"{{ network.name }}\"? {% if endpoints %}\n\nWARNING: This network has {{ endpoints|length }} endpoint(s). You must delete all endpoints first.{% endif %}')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-outline-danger btn-sm" {% if endpoints %}disabled title="Remove all endpoints first"{% endif %}>
+                            <i class="fas fa-trash"></i> Delete Network
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -226,9 +229,12 @@
                                         <button class="btn btn-outline-primary" onclick="showQR({{ endpoint.id }})" title="QR Code">
                                             <i class="fas fa-qrcode"></i>
                                         </button>
-                                        <button class="btn btn-outline-danger" title="Delete">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        <form method="POST" action="{{ url_for('delete_endpoint', endpoint_id=endpoint.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete endpoint \"{{ endpoint.name }}\"? This action cannot be undone.')">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>

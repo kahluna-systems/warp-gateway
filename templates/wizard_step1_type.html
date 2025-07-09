@@ -1,0 +1,159 @@
+{% extends "network_wizard_base.html" %}
+
+{% block wizard_content %}
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-list"></i> Step 1: Select Network Type</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            
+            <div class="mb-4">
+                <label class="form-label">Choose the type of network you want to create:</label>
+                
+                <div class="row">
+                    {% for value, label in form.network_type.choices %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card network-type-card" data-value="{{ value }}">
+                            <div class="card-body">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="network_type" id="network_type_{{ value }}" value="{{ value }}" {{ 'checked' if form.network_type.data == value }}>
+                                    <label class="form-check-label w-100" for="network_type_{{ value }}">
+                                        <h6>{{ label }}</h6>
+                                        <p class="text-muted small mb-0">{{ network_descriptions[value] }}</p>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-arrow-right"></i> Next
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block wizard_info %}
+<h6><i class="fas fa-question-circle"></i> Network Types</h6>
+<div class="accordion" id="networkTypesAccordion">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#secureInternet">
+                Secure Internet
+            </button>
+        </h2>
+        <div id="secureInternet" class="accordion-collapse collapse" data-bs-parent="#networkTypesAccordion">
+            <div class="accordion-body">
+                <small>Full tunnel VPN for secure internet access. All traffic is routed through the gateway.</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#remoteResource">
+                Remote Resource Gateway
+            </button>
+        </h2>
+        <div id="remoteResource" class="accordion-collapse collapse" data-bs-parent="#networkTypesAccordion">
+            <div class="accordion-body">
+                <small>Split tunnel for accessing corporate resources. Only specific subnets are routed through the VPN.</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#l3vpn">
+                L3VPN
+            </button>
+        </h2>
+        <div id="l3vpn" class="accordion-collapse collapse" data-bs-parent="#networkTypesAccordion">
+            <div class="accordion-body">
+                <small>Site-to-site Layer 3 VPN for connecting multiple locations with routing capabilities.</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#l2p2p">
+                L2 Point-to-Point
+            </button>
+        </h2>
+        <div id="l2p2p" class="accordion-collapse collapse" data-bs-parent="#networkTypesAccordion">
+            <div class="accordion-body">
+                <small>Layer 2 bridging between exactly two locations. Transparent Ethernet bridging.</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#l2mesh">
+                L2 Mesh
+            </button>
+        </h2>
+        <div id="l2mesh" class="accordion-collapse collapse" data-bs-parent="#networkTypesAccordion">
+            <div class="accordion-body">
+                <small>Layer 2 mesh network with VXLAN and VLAN support for multiple sites.</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handler for network type cards
+    const cards = document.querySelectorAll('.network-type-card');
+    cards.forEach(card => {
+        card.addEventListener('click', function() {
+            const value = this.dataset.value;
+            const radio = document.getElementById('network_type_' + value);
+            radio.checked = true;
+            
+            // Update card styles
+            cards.forEach(c => c.classList.remove('border-primary'));
+            this.classList.add('border-primary');
+        });
+    });
+    
+    // Set initial state
+    const checkedRadio = document.querySelector('input[name="network_type"]:checked');
+    if (checkedRadio) {
+        const card = document.querySelector('.network-type-card[data-value="' + checkedRadio.value + '"]');
+        if (card) {
+            card.classList.add('border-primary');
+        }
+    }
+});
+</script>
+
+<style>
+.network-type-card {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.network-type-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.network-type-card.border-primary {
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+</style>
+{% endblock %}

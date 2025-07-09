@@ -54,9 +54,12 @@
                                         <button class="btn btn-outline-primary" onclick="showQR({{ endpoint.id }})" title="QR Code">
                                             <i class="fas fa-qrcode"></i>
                                         </button>
-                                        <button class="btn btn-outline-danger" title="Delete">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        <form method="POST" action="{{ url_for('delete_endpoint', endpoint_id=endpoint.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete endpoint \"{{ endpoint.name }}\"? This action cannot be undone.')">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>

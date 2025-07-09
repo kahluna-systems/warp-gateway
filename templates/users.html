@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - KahLuna WARP Gateway{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users-cog"></i> User Management
+                        <span class="badge bg-primary ms-2">{{ users|length }} users</span>
+                    </h5>
+                    <div>
+                        <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add User
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if users %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Last Login</th>
+                                        <th>Failed Attempts</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in users %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ user.username }}</strong>
+                                            {% if user.id == current_user.id %}
+                                                <span class="badge bg-info ms-2">You</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ user.email }}</td>
+                                        <td>
+                                            <span class="badge {% if user.role == 'admin' %}bg-danger{% elif user.role == 'operator' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                                {{ user.role|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if user.is_active %}
+                                                {% if user.is_account_locked() %}
+                                                    <span class="badge bg-danger">Locked</span>
+                                                    <small class="text-muted d-block">
+                                                        Until: {{ user.locked_until.strftime('%m/%d %H:%M') if user.locked_until else 'Unknown' }}
+                                                    </small>
+                                                {% else %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="badge bg-secondary">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.last_login %}
+                                                {{ user.last_login.strftime('%Y-%m-%d %H:%M') }}
+                                            {% else %}
+                                                <span class="text-muted">Never</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.failed_login_attempts > 0 %}
+                                                <span class="badge bg-warning">{{ user.failed_login_attempts }}</span>
+                                            {% else %}
+                                                <span class="text-muted">0</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                {% if user.id != current_user.id %}
+                                                    {% if user.is_account_locked() %}
+                                                        <button class="btn btn-outline-success" title="Unlock Account" 
+                                                                onclick="unlockUser({{ user.id }})">
+                                                            <i class="fas fa-unlock"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                    {% if user.is_active %}
+                                                        <button class="btn btn-outline-warning" title="Disable User" 
+                                                                onclick="toggleUser({{ user.id }}, false)">
+                                                            <i class="fas fa-user-slash"></i>
+                                                        </button>
+                                                    {% else %}
+                                                        <button class="btn btn-outline-success" title="Enable User" 
+                                                                onclick="toggleUser({{ user.id }}, true)">
+                                                            <i class="fas fa-user-check"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                    <button class="btn btn-outline-danger" title="Delete User" 
+                                                            onclick="deleteUser({{ user.id }}, '{{ user.username }}')">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h4>No Users Found</h4>
+                            <p class="text-muted">Create your first user to get started.</p>
+                            <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add User
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden CSRF token for AJAX requests -->
+<form style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+
+<script>
+// Get CSRF token for AJAX requests
+function getCSRFToken() {
+    const token = document.querySelector('[name=csrf_token]');
+    return token ? token.value : '';
+}
+
+function unlockUser(userId) {
+    if (confirm('Are you sure you want to unlock this user account?')) {
+        fetch(`/users/${userId}/unlock`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error unlocking user: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error unlocking user: ' + error.message);
+        });
+    }
+}
+
+function toggleUser(userId, enable) {
+    const action = enable ? 'enable' : 'disable';
+    if (confirm(`Are you sure you want to ${action} this user?`)) {
+        fetch(`/users/${userId}/${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(`Error ${action}ing user: ` + data.message);
+            }
+        })
+        .catch(error => {
+            alert(`Error ${action}ing user: ` + error.message);
+        });
+    }
+}
+
+function deleteUser(userId, username) {
+    if (confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+        fetch(`/users/${userId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error deleting user: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error deleting user: ' + error.message);
+        });
+    }
+}
+</script>
+{% endblock %}

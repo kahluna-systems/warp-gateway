@@ -209,10 +209,14 @@ def setup_vlan_bridge(bridge_name, vlan_id=None, enable_vlan_filtering=True):
     if enable_vlan_filtering:
         commands.append(['ip', 'link', 'set', 'dev', bridge_name, 'type', 'bridge', 'vlan_filtering', '1'])
     
-    # This would execute the commands in production
+    # Execute the commands for real network setup
     for cmd in commands:
-        print(f"Would execute: {' '.join(cmd)}")
-        # subprocess.run(cmd, check=True)
+        print(f"Executing: {' '.join(cmd)}")
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Command failed: {e}")
+            # Continue with other commands
     
     return True
 
@@ -243,10 +247,14 @@ def setup_vxlan_with_vlan(interface_name, vni, local_ip, vlan_id=None, bridge_na
         if vlan_id:
             commands.append(['bridge', 'vlan', 'add', 'dev', interface_name, 'vid', str(vlan_id)])
     
-    # This would execute the commands in production
+    # Execute the commands for real network setup
     for cmd in commands:
-        print(f"Would execute: {' '.join(cmd)}")
-        # subprocess.run(cmd, check=True)
+        print(f"Executing: {' '.join(cmd)}")
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Command failed: {e}")
+            # Continue with other commands
     
     return True
 
@@ -276,10 +284,14 @@ def setup_gretap_with_vlan(interface_name, local_ip, remote_ip, vlan_id=None, br
         if vlan_id:
             commands.append(['bridge', 'vlan', 'add', 'dev', interface_name, 'vid', str(vlan_id)])
     
-    # This would execute the commands in production
+    # Execute the commands for real network setup
     for cmd in commands:
-        print(f"Would execute: {' '.join(cmd)}")
-        # subprocess.run(cmd, check=True)
+        print(f"Executing: {' '.join(cmd)}")
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Command failed: {e}")
+            # Continue with other commands
     
     return True
 
@@ -386,17 +398,17 @@ def generate_subnet_pools():
             'description': 'Remote Resource Gateway subnets'
         },
         'l3vpn_gateway': {
-            'base_network': '10.300.0.0/16',
+            'base_network': '10.50.0.0/16',
             'subnet_size': 24,  # /24 for site-to-site
             'description': 'L3 VPN Gateway subnets'
         },
         'l2_point_to_point': {
-            'base_network': '10.400.0.0/16',
+            'base_network': '10.60.0.0/16',
             'subnet_size': 30,  # /30 for point-to-point L2
             'description': 'L2 Point-to-Point subnets'
         },
         'l2_mesh': {
-            'base_network': '10.500.0.0/16',
+            'base_network': '10.70.0.0/16',
             'subnet_size': 24,  # /24 for mesh networks
             'description': 'L2 Mesh subnets'
         }

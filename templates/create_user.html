@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Create User - KahLuna WARP Gateway{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-plus"></i> Create New User
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('create_user') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.username.label(class="form-label") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-user"></i>
+                                        </span>
+                                        {{ form.username(class="form-control", placeholder="Enter username") }}
+                                    </div>
+                                    {% if form.username.errors %}
+                                        <div class="text-danger mt-1">
+                                            {% for error in form.username.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Username must be 3-80 characters long.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.email.label(class="form-label") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-envelope"></i>
+                                        </span>
+                                        {{ form.email(class="form-control", placeholder="Enter email address") }}
+                                    </div>
+                                    {% if form.email.errors %}
+                                        <div class="text-danger mt-1">
+                                            {% for error in form.email.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Valid email address required.</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.password.label(class="form-label") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-key"></i>
+                                        </span>
+                                        {{ form.password(class="form-control", placeholder="Enter password") }}
+                                    </div>
+                                    {% if form.password.errors %}
+                                        <div class="text-danger mt-1">
+                                            {% for error in form.password.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Password must be at least 8 characters long.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.confirm_password.label(class="form-label") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-check"></i>
+                                        </span>
+                                        {{ form.confirm_password(class="form-control", placeholder="Confirm password") }}
+                                    </div>
+                                    {% if form.confirm_password.errors %}
+                                        <div class="text-danger mt-1">
+                                            {% for error in form.confirm_password.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Must match the password above.</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.role.label(class="form-label") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-user-shield"></i>
+                                        </span>
+                                        {{ form.role(class="form-select") }}
+                                    </div>
+                                    {% if form.role.errors %}
+                                        <div class="text-danger mt-1">
+                                            {% for error in form.role.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('users') }}" class="btn btn-secondary me-md-2">Cancel</a>
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">User Roles</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-danger">
+                            <i class="fas fa-crown"></i> Administrator
+                        </h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-check text-success"></i> Full system access</li>
+                            <li><i class="fas fa-check text-success"></i> User management</li>
+                            <li><i class="fas fa-check text-success"></i> System configuration</li>
+                            <li><i class="fas fa-check text-success"></i> All network operations</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6 class="text-warning">
+                            <i class="fas fa-wrench"></i> Operator
+                        </h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-check text-success"></i> Network management</li>
+                            <li><i class="fas fa-check text-success"></i> Endpoint configuration</li>
+                            <li><i class="fas fa-check text-success"></i> View statistics</li>
+                            <li><i class="fas fa-times text-danger"></i> User management</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6 class="text-secondary">
+                            <i class="fas fa-eye"></i> Viewer
+                        </h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-check text-success"></i> View networks</li>
+                            <li><i class="fas fa-check text-success"></i> View endpoints</li>
+                            <li><i class="fas fa-check text-success"></i> View statistics</li>
+                            <li><i class="fas fa-times text-danger"></i> No modifications</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Security Guidelines</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-key text-warning"></i>
+                            <strong>Password:</strong> Use strong, unique passwords
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-shield-alt text-info"></i>
+                            <strong>Access:</strong> Grant minimum required permissions
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-clock text-muted"></i>
+                            <strong>Review:</strong> Regularly review user access
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-trash text-danger"></i>
+                            <strong>Cleanup:</strong> Remove unused accounts
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

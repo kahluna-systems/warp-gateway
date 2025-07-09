@@ -7,8 +7,8 @@
     <div class="col-md-12">
         <div class="d-flex justify-content-between align-items-center">
             <h1><i class="fas fa-network-wired"></i> VPN Networks</h1>
-            <a href="{{ url_for('add_network') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Add Network
+            <a href="{{ url_for('network_wizard_step1') }}" class="btn btn-primary">
+                <i class="fas fa-magic"></i> Create Network
             </a>
         </div>
     </div>
@@ -35,8 +35,8 @@
                         </thead>
                         <tbody>
                             {% for network in networks %}
-                            <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                <td>
+                            <tr>
+                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
                                     <strong>{{ network.name }}</strong>
                                     {% if network.peer_communication_enabled %}
                                         <span class="badge bg-success ms-2" title="Peer Communication Enabled">MESH</span>
@@ -44,21 +44,23 @@
                                         <span class="badge bg-secondary ms-2" title="Hub and Spoke">HUB</span>
                                     {% endif %}
                                 </td>
-                                <td>
+                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
                                     <span class="badge bg-primary">{{ network.get_network_type_config().get('name', 'Unknown') }}</span>
                                 </td>
-                                <td>
+                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
                                     <code class="text-primary">{{ "%04d-%04d"|format(network.vcid // 10000, network.vcid % 10000) }}</code>
                                 </td>
-                                <td><code>{{ network.port }}</code></td>
-                                <td>
+                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
+                                    <code>{{ network.port }}</code>
+                                </td>
+                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
                                     <code>{{ network.subnet }}</code>
                                     <small class="text-muted d-block">{{ network.expected_users }} users</small>
                                 </td>
-                                <td>
+                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
                                     <span class="badge bg-success">{{ network.endpoints|length }} endpoints</span>
                                 </td>
-                                <td>
+                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
                                     {% if network.is_active %}
                                         <span class="badge bg-success">Active</span>
                                     {% else %}
@@ -67,12 +69,15 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-primary" title="Edit">
+                                        <a href="{{ url_for('network_detail', network_id=network.id) }}" class="btn btn-outline-primary" title="Edit">
                                             <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button class="btn btn-outline-danger" title="Delete">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        </a>
+                                        <form method="POST" action="{{ url_for('delete_network', network_id=network.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete network \"{{ network.name }}\"? This action cannot be undone.')">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -85,8 +90,8 @@
                     <i class="fas fa-network-wired fa-3x text-muted mb-3"></i>
                     <h4>No VPN Networks Found</h4>
                     <p class="text-muted">Create your first VPN network to get started.</p>
-                    <a href="{{ url_for('add_network') }}" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Add Network
+                    <a href="{{ url_for('network_wizard_step1') }}" class="btn btn-primary">
+                        <i class="fas fa-magic"></i> Create Network
                     </a>
                 </div>
                 {% endif %}

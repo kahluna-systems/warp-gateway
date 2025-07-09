@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Test Sample</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+        .qr-container { margin: 20px 0; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        .config-text { background: #f5f5f5; padding: 15px; margin: 10px 0; text-align: left; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🧪 QR Code Test Samples</h1>
+    <p>Use these QR codes to test the scanner on your iPhone</p>
+    
+    <div class="qr-container">
+        <h3>Sample WireGuard Configuration</h3>
+        <canvas id="qr1"></canvas>
+        <div class="config-text" id="config1"></div>
+    </div>
+    
+    <div class="qr-container">
+        <h3>Another Test Configuration</h3>
+        <canvas id="qr2"></canvas>
+        <div class="config-text" id="config2"></div>
+    </div>
+    
+    <script>
+        // Sample WireGuard configurations for testing
+        const config1 = `[Interface]
+PrivateKey = YAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=
+Address = 10.192.122.3/32
+DNS = 10.192.122.1
+
+[Peer]
+PublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=
+Endpoint = demo.example.com:51820
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25`;
+
+        const config2 = `[Interface]
+PrivateKey = oNZNYoQKH0uQED6p/BjqMUSOk+nT1tPJCaWBD8gUzHQ=
+Address = 192.168.100.2/24
+DNS = 1.1.1.1, 8.8.8.8
+
+[Peer]
+PublicKey = HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=
+Endpoint = vpn.testnetwork.com:51820
+AllowedIPs = 192.168.100.0/24, 10.0.0.0/8
+PersistentKeepalive = 25`;
+
+        // Generate QR codes
+        QRCode.toCanvas(document.getElementById('qr1'), config1, { width: 256 }, function (error) {
+            if (error) console.error(error);
+            console.log('QR1 generated successfully');
+        });
+
+        QRCode.toCanvas(document.getElementById('qr2'), config2, { width: 256 }, function (error) {
+            if (error) console.error(error);
+            console.log('QR2 generated successfully');
+        });
+
+        // Display configurations
+        document.getElementById('config1').textContent = config1;
+        document.getElementById('config2').textContent = config2;
+    </script>
+</body>
+</html>

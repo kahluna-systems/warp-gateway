@@ -1,28 +1,53 @@
-# KahLuna WARP VPN Manager
+# KahLuna WARP VPN Gateway
 
-A modern, extensible VPN management platform built on WireGuard with support for both Layer 3 and Layer 2 topologies.
+A **production-ready, self-hosted VPN gateway appliance** designed for cloud marketplace deployment. This is an all-in-one VPN solution with enterprise-grade features, dynamic network creation, and professional testing tools.
+
+## 🚀 Current Status (2025-01-09)
+
+### ✅ **Production Ready Features**
+- **Dynamic Network Creation Wizard** with automatic resource allocation
+- **Real-time Status Management** based on WireGuard handshakes
+- **VCID-based Interface Naming** for Linux compatibility (wg<VCID>)
+- **Actual WireGuard Integration** creating real VPN networks in /etc/wireguard/
+- **Professional On-Demand Control** with suspend/resume functionality
+- **Enterprise Testing Suite** (PWA) for field technicians
+- **Complete Authentication System** with CSRF protection
+- **Network/Endpoint Deletion** with proper confirmations
+- **Rate Limiting Profiles** for different user types
+
+### 🔄 **Remaining Tasks**
+- Complete network wizards for 4 remaining network types
+- Content filtering implementation
+- HTTPS deployment for production security
 
 ## Features
 
-- **Multi-Gateway Support**: Manage multiple WireGuard gateways
-- **Dynamic IP Management**: Automatic IP assignment with IPAM
-- **Multiple Network Types**: Support for different VPN topologies
-- **Overlay Networks**: GRE/VXLAN support for Layer 2 connectivity
-- **Config Generation**: Automatic WireGuard config generation
-- **QR Code Export**: Generate QR codes for mobile clients
-- **Web Interface**: Modern Bootstrap-based admin interface
-- **CLI Tools**: Command-line interface for automation
+### Network Types
+1. **Secure Internet** - Full tunnel VPN with rate limiting profiles ✅
+2. **Remote Resource Gateway** - Split tunnel for corporate resources 🔄
+3. **L3VPN Gateway** - Site-to-site connectivity with routing 🔄
+4. **L2 Point to Point** - Direct Layer 2 bridging (max 2 endpoints) 🔄
+5. **L2 Mesh** - Shared Layer 2 broadcast domain 🔄
 
-## Network Types
-
-1. **Secure Internet**: Full tunnel VPN for secure internet access
-2. **Remote Resource Gateway**: Split tunnel for specific subnets
-3. **L3VPN Gateway**: Peer-to-peer with BGP/OSPF routing support
-4. **L2 Point to Point**: Direct Layer 2 bridging using GRE/VXLAN
-5. **L2 Mesh**: Shared Layer 2 broadcast domain for multiple peers
+### Core Capabilities
+- **Dynamic Network Creation**: Intelligent wizard system with automatic resource allocation
+- **VCID Management**: 8-digit Virtual Circuit IDs for all networks
+- **Status Tracking**: Real-time network and endpoint status based on WireGuard handshakes
+- **Professional Controls**: Suspend/resume networks and endpoints on-demand
+- **QR Code Generation**: Mobile-friendly configuration distribution
+- **Enterprise Testing**: Progressive Web App for field validation
+- **Security**: CSRF protection, user management, audit logging
 
 ## Installation
 
+### Quick Cloud Deployment
+```bash
+# One-command deployment for cloud instances
+sudo ./deploy.sh
+# Sets up: nginx, SSL, systemd, firewall, server initialization
+```
+
+### Manual Installation
 1. Clone the repository:
 ```bash
 git clone <repository-url>
@@ -45,6 +70,11 @@ pip install -r requirements.txt
 python cli.py init-db
 ```
 
+5. Initialize server configuration:
+```bash
+python server_init.py
+```
+
 ## Usage
 
 ### Web Interface
@@ -56,79 +86,165 @@ python app.py
 
 Access the web interface at: http://localhost:5000
 
+### Network Creation Wizard
+
+1. Navigate to Networks → Create Network
+2. Select network type (Secure Internet, Remote Resource Gateway, etc.)
+3. Configure network-specific settings with automatic resource allocation
+4. Network is created with proper WireGuard interface
+
 ### CLI Usage
 
-List available interfaces:
+List VPN networks:
 ```bash
-python cli.py list-interfaces
+python cli.py list-networks
 ```
 
-Create a new peer:
+Create endpoint:
 ```bash
-python cli.py create-peer <interface_id> <peer_name>
+python cli.py create-endpoint <network_id> <endpoint_name> --type mobile|cpe|gateway
 ```
 
-Show peer configuration:
+Show endpoint configuration:
 ```bash
-python cli.py show-config <peer_id>
+python cli.py show-config <endpoint_id>
 ```
 
-Export peer configuration:
+Export configuration:
 ```bash
-python cli.py export-config <peer_id> --filename client.conf
+python cli.py export-config <endpoint_id> --filename client.conf
+```
+
+### Production Service
+
+```bash
+# Service management
+systemctl start warp-gateway
+systemctl stop warp-gateway
+systemctl status warp-gateway
+
+# View logs
+journalctl -u warp-gateway -f
 ```
 
 ## Database Models
 
-- **Gateway**: WireGuard server with public IP and location
-- **WGInterface**: WireGuard interface on a gateway with subnet and keys
-- **Peer**: Client peer with IP, keys, and config metadata
-- **PeerConfig**: Historical versions of peer configurations
-- **NetworkType**: Template defining routing/overlay behavior
-- **NetworkInstance**: Instantiation of a network type on an interface
+### Current Schema (Dynamic Status System)
+- **ServerConfig**: Single server configuration for this VPN appliance
+- **VPNNetwork**: Business-focused network management with VCID and status tracking
+- **Endpoint**: CPE devices, mobile clients, gateways with type classification
+- **EndpointConfig**: Versioned endpoint configurations
+- **User**: Authentication with role-based access control
+- **AuditLog**: Complete activity logging
+
+### Status Management
+- **Network States**: Active, Suspended, Pending, Failed
+- **Endpoint States**: Active, Suspended, Pending, Disconnected, Failed
+- **Dynamic Detection**: Status based on actual WireGuard handshake activity
+
+## Gateway Testing Suite (Enterprise PWA)
+
+### Professional Testing Tool
+- **Target Users**: Field technicians, network administrators, support engineers
+- **Location**: `/gateway-testing-suite/pwa/`
+- **Features**: QR scanner, network validation, device fleet management, usage analytics
+
+### Access
+Navigate to: `http://your-server:5000/gateway-testing-suite/pwa/`
 
 ## Configuration
 
-Environment variables:
+### Environment Variables
 - `SECRET_KEY`: Flask secret key (default: dev key)
 - `DATABASE_URL`: Database connection string (default: SQLite)
+- `SESSION_COOKIE_SECURE`: HTTPS cookie security (default: False)
+
+### Network Configuration
+- **Port Range**: 51820-51829 (automatically assigned)
+- **Subnet Allocation**: Automatic per network type
+- **VCID Format**: 8-digit numbers for interface naming
 
 ## Security Features
 
-- Automatic WireGuard keypair generation
-- Preshared key support for additional security
-- IP address validation and management
-- Secure config storage with versioning
+### Authentication & Authorization
+- **User Management**: Create, edit, delete users with role-based access
+- **Session Security**: 8-hour timeout with activity tracking
+- **CSRF Protection**: All forms protected against cross-site request forgery
+- **Audit Logging**: Complete activity logging for security monitoring
 
-## Overlay Networks
+### Network Security
+- **VPN Network Isolation**: Each network operates independently
+- **Status-Based Control**: Networks can be suspended without affecting others
+- **Resource Conflict Prevention**: Automatic detection of port/subnet conflicts
+- **Secure Configuration**: Automatic keypair generation with preshared keys
 
-Support for Layer 2 overlays:
-- **GRE**: Generic Routing Encapsulation
-- **VXLAN**: Virtual Extensible LAN
-- **GRE TAP**: GRE with TAP for Layer 2 bridging
+## API Endpoints
+
+### Core Management
+- `GET /` - Dashboard with network/endpoint stats
+- `GET|POST /networks` - VPN Network management
+- `GET|POST /endpoints` - Endpoint management
+- `GET /endpoints/<id>/config` - View endpoint config
+- `GET /endpoints/<id>/config/download` - Download .conf file
+- `GET /endpoints/<id>/qr` - Get QR code JSON
+- `GET|POST /server-config` - Server configuration
+
+### Network Creation Wizard
+- `GET|POST /networks/wizard/step1` - Network type selection
+- `GET|POST /networks/wizard/step2` - Network configuration
+
+### Professional Controls
+- `POST /networks/<id>/delete` - Delete network with confirmation
+- `POST /endpoints/<id>/delete` - Delete endpoint with confirmation
+- `POST /networks/<id>/suspend` - Suspend network on-demand
+- `POST /networks/<id>/resume` - Resume network on-demand
+- `POST /endpoints/<id>/suspend` - Suspend endpoint on-demand
+- `POST /endpoints/<id>/resume` - Resume endpoint on-demand
 
 ## Development
 
-Run in development mode:
+### Run in Development Mode
 ```bash
 export FLASK_ENV=development
 python app.py
 ```
 
-## API Endpoints
+### Database Migration
+```bash
+# Update schema to new format
+python migrate_to_vpn_networks.py
+```
 
-- `GET /`: Dashboard
-- `GET /gateways`: List gateways
-- `POST /gateways/add`: Add gateway
-- `GET /interfaces`: List interfaces
-- `POST /interfaces/add`: Add interface
-- `GET /peers`: List peers
-- `POST /peers/add`: Add peer
-- `GET /peers/<id>/config`: View peer config
-- `GET /peers/<id>/config/download`: Download config file
-- `GET /peers/<id>/qr`: Get QR code
-- `GET /network_types`: List network types
-- `GET /network_instances`: List network instances
+## Architecture
+
+### Deployment Architecture
+```
+Cloud Instance → KahLuna WARP Gateway
+     ↓
+Flask Web App (port 5000) → Self-Hosted VPN Server
+     ↓                           ↓
+Network Creation Wizard    Real WireGuard Integration
+Dynamic Status Management  Enhanced Layer 2 Overlays
+Auto Resource Pools       VLAN Isolation
+Gateway Testing Suite     Professional Controls
+```
+
+### VCID Interface Naming
+- **Problem**: Network names with spaces can't be used as Linux interface names
+- **Solution**: Use 8-digit VCID as interface name (wg<VCID>)
+- **Example**: Network "Corporate VPN" → Interface "wg12345678"
+
+## Known Issues
+
+### ⚠️ **Statistics Page Error**
+- **Issue**: Template error accessing network utilization statistics
+- **Status**: Non-critical, statistics collection needs debugging
+- **Workaround**: Avoid /statistics page until fixed
+
+### 🔄 **Incomplete Network Wizards**
+- **Status**: Only Secure Internet wizard implemented
+- **Remaining**: 4 network types need wizard implementation
+- **Priority**: High for complete functionality
 
 ## License
 

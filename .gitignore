@@ -135,3 +135,7 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Testing directories (keep these excluded)
+testing/
+dev-tools/

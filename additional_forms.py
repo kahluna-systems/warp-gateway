@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, SelectField, TextAreaField, IntegerField, BooleanField, SubmitField, FloatField
-from wtforms.validators import DataRequired, IPAddress, NumberRange, Length, ValidationError, Optional
+from wtforms import StringField, SelectField, TextAreaField, IntegerField, BooleanField, SubmitField, FloatField, PasswordField
+from wtforms.validators import DataRequired, IPAddress, NumberRange, Length, ValidationError, Optional, Email, EqualTo
 
 
 class SearchForm(FlaskForm):
@@ -39,3 +39,45 @@ class RateLimitForm(FlaskForm):
     def validate_upload_mbps(self, field):
         if self.enabled.data and not field.data:
             raise ValidationError('Upload limit is required when rate limiting is enabled.')
+
+
+class LoginForm(FlaskForm):
+    """User login form"""
+    username = StringField('Username', validators=[DataRequired(), Length(min=3, max=80)])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember_me = BooleanField('Remember Me', default=False)
+    submit = SubmitField('Login')
+
+
+class CreateUserForm(FlaskForm):
+    """Form for creating new users"""
+    username = StringField('Username', validators=[DataRequired(), Length(min=3, max=80)])
+    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    password = PasswordField('Password', validators=[
+        DataRequired(),
+        Length(min=8, max=128, message='Password must be at least 8 characters long')
+    ])
+    confirm_password = PasswordField('Confirm Password', validators=[
+        DataRequired(),
+        EqualTo('password', message='Passwords must match')
+    ])
+    role = SelectField('Role', choices=[
+        ('admin', 'Administrator'),
+        ('operator', 'Operator'),
+        ('viewer', 'Viewer')
+    ], default='operator')
+    submit = SubmitField('Create User')
+
+
+class ChangePasswordForm(FlaskForm):
+    """Form for changing user password"""
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[
+        DataRequired(),
+        Length(min=8, max=128, message='Password must be at least 8 characters long')
+    ])
+    confirm_password = PasswordField('Confirm New Password', validators=[
+        DataRequired(),
+        EqualTo('new_password', message='Passwords must match')
+    ])
+    submit = SubmitField('Change Password')

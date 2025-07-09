@@ -1,10 +1,29 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import ipaddress
 import subprocess
 import json
+import re
 from database import db
 from sqlalchemy import or_
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 
+
+# Status constants for networks and endpoints
+NETWORK_STATUS = {
+    'active': 'Active',
+    'suspended': 'Suspended', 
+    'pending': 'Pending',
+    'failed': 'Failed'
+}
+
+ENDPOINT_STATUS = {
+    'active': 'Active',
+    'suspended': 'Suspended',
+    'pending': 'Pending',
+    'disconnected': 'Disconnected',
+    'failed': 'Failed'
+}
 
 # Fixed Network Types - not stored in database
 # Updated network type descriptions for business focus
@@ -65,6 +84,66 @@ NETWORK_TYPES = {
         'use_case': 'VPLS emulation, broadcast-heavy services, Layer 2 segmentation'
     }
 }
+
+
+class User(UserMixin, db.Model):
+    """Authentication model for system users"""
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), default='admin')  # admin, viewer, operator
+    is_active = db.Column(db.Boolean, default=True)
+    last_login = db.Column(db.DateTime)
+    failed_login_attempts = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship to audit logs
+    audit_logs = db.relationship('AuditLog', backref='user', lazy=True)
+    
+    def set_password(self, password):
+        """Hash and set password"""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Check if provided password matches hash"""
+        return check_password_hash(self.password_hash, password)
+    
+    def is_account_locked(self):
+        """Check if account is locked due to failed attempts"""
+        if self.locked_until and datetime.utcnow() < self.locked_until:
+            return True
+        return False
+    
+    def reset_failed_attempts(self):
+        """Reset failed login attempts"""
+        self.failed_login_attempts = 0
+        self.locked_until = None
+    
+    def increment_failed_attempts(self):
+        """Increment failed attempts and lock if needed"""
+        self.failed_login_attempts += 1
+        if self.failed_login_attempts >= 5:
+            # Lock account for 30 minutes
+            from datetime import timedelta
+            self.locked_until = datetime.utcnow() + timedelta(minutes=30)
+    
+    def has_permission(self, action):
+        """Check if user has permission for action"""
+        role_permissions = {
+            'admin': ['read', 'write', 'delete', 'manage_users'],
+            'operator': ['read', 'write'],
+            'viewer': ['read']
+        }
+        
+        return action in role_permissions.get(self.role, [])
+    
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 
 class ServerConfig(db.Model):
@@ -130,7 +209,7 @@ class VPNNetwork(db.Model):
     network_type = db.Column(db.String(50), nullable=False)  # Key from NETWORK_TYPES
     private_key = db.Column(db.Text, nullable=False)
     public_key = db.Column(db.Text, nullable=False)
-    is_active = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='pending')  # pending, active, suspended, failed
     custom_allowed_ips = db.Column(db.Text)  # Override default for split tunnels
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -200,51 +279,172 @@ class VPNNetwork(db.Model):
         
         return len(self.endpoints) < max_endpoints
     
+    def get_interface_name(self):
+        """Generate a valid Linux interface name using the VCID"""
+        # Use VCID as interface name (e.g., wg12345678)
+        return f'wg{self.vcid}'
+    
+    def get_wireguard_status(self):
+        """Get current WireGuard interface status and peer information"""
+        interface_name = self.get_interface_name()
+        
+        try:
+            # Check if interface exists
+            result = subprocess.run(['ip', 'link', 'show', interface_name], 
+                                  capture_output=True, text=True, check=True)
+            
+            # Get WireGuard configuration
+            wg_result = subprocess.run(['wg', 'show', interface_name], 
+                                     capture_output=True, text=True, check=True)
+            
+            # Parse WireGuard output to get peer information
+            peers = []
+            current_peer = None
+            
+            for line in wg_result.stdout.split('\n'):
+                if line.startswith('peer: '):
+                    if current_peer:
+                        peers.append(current_peer)
+                    current_peer = {'public_key': line.split(': ')[1]}
+                elif line.startswith('  latest handshake: '):
+                    if current_peer:
+                        handshake_str = line.split(': ')[1]
+                        if handshake_str != '(none)':
+                            current_peer['last_handshake'] = handshake_str
+                elif line.startswith('  transfer: '):
+                    if current_peer:
+                        current_peer['transfer'] = line.split(': ')[1]
+                elif line.startswith('  allowed ips: '):
+                    if current_peer:
+                        current_peer['allowed_ips'] = line.split(': ')[1]
+            
+            if current_peer:
+                peers.append(current_peer)
+            
+            return {
+                'interface_exists': True,
+                'interface_up': 'UP' in result.stdout,
+                'peers': peers,
+                'total_peers': len(peers)
+            }
+            
+        except subprocess.CalledProcessError:
+            return {
+                'interface_exists': False,
+                'interface_up': False,
+                'peers': [],
+                'total_peers': 0
+            }
+    
+    def update_dynamic_status(self):
+        """Update network status based on actual WireGuard state"""
+        wg_status = self.get_wireguard_status()
+        
+        if self.status == 'suspended':
+            # Don't change suspended status automatically
+            return self.status
+            
+        if not wg_status['interface_exists']:
+            self.status = 'failed'
+        elif not wg_status['interface_up']:
+            self.status = 'pending'
+        elif wg_status['total_peers'] > 0:
+            # Check if any peers have recent handshakes
+            recent_handshakes = False
+            for peer in wg_status['peers']:
+                if 'last_handshake' in peer:
+                    # Consider handshake recent if within last 3 minutes
+                    # (WireGuard typically handshakes every 2 minutes)
+                    recent_handshakes = True
+                    break
+            
+            self.status = 'active' if recent_handshakes else 'pending'
+        else:
+            self.status = 'pending'
+        
+        return self.status
+    
     def create_network(self):
         """Create the actual WireGuard network interface on the system"""
         try:
+            interface_name = self.get_interface_name()
+            
             # Create WireGuard interface
-            subprocess.run(['ip', 'link', 'add', 'dev', self.name, 'type', 'wireguard'], check=True)
+            subprocess.run(['ip', 'link', 'add', 'dev', interface_name, 'type', 'wireguard'], check=True)
             
             # Set private key
-            subprocess.run(['wg', 'set', self.name, 'private-key', '/dev/stdin'], 
+            subprocess.run(['wg', 'set', interface_name, 'private-key', '/dev/stdin'], 
                           input=self.private_key.encode(), check=True)
             
             # Set IP address (gateway gets first usable IP)
             network = ipaddress.ip_network(self.subnet, strict=False)
             gateway_ip = str(network.network_address + 1)
-            subprocess.run(['ip', 'addr', 'add', f'{gateway_ip}/{network.prefixlen}', 'dev', self.name], check=True)
+            subprocess.run(['ip', 'addr', 'add', f'{gateway_ip}/{network.prefixlen}', 'dev', interface_name], check=True)
             
             # Set listening port
-            subprocess.run(['wg', 'set', self.name, 'listen-port', str(self.port)], check=True)
+            subprocess.run(['wg', 'set', interface_name, 'listen-port', str(self.port)], check=True)
             
             # Bring interface up
-            subprocess.run(['ip', 'link', 'set', 'up', 'dev', self.name], check=True)
+            subprocess.run(['ip', 'link', 'set', 'up', 'dev', interface_name], check=True)
             
             # Configure routing based on network type
-            self._configure_routing()
+            self._configure_routing(interface_name)
             
             # Configure overlay if needed
-            self._configure_overlay()
+            self._configure_overlay(interface_name)
             
-            self.is_active = True
+            self.status = 'pending'  # Will become 'active' when peers connect
             return True
             
         except subprocess.CalledProcessError as e:
             print(f"Error creating network {self.name}: {e}")
+            self.status = 'failed'
             return False
     
     def destroy_network(self):
         """Destroy the WireGuard network interface"""
         try:
-            subprocess.run(['ip', 'link', 'delete', 'dev', self.name], check=True)
-            self.is_active = False
+            interface_name = self.get_interface_name()
+            subprocess.run(['ip', 'link', 'delete', 'dev', interface_name], check=True)
+            self.status = 'pending'
             return True
         except subprocess.CalledProcessError as e:
             print(f"Error destroying network {self.name}: {e}")
+            self.status = 'failed'
             return False
     
-    def _configure_routing(self):
+    def remove_network(self):
+        """Remove the WireGuard network interface (alias for destroy_network)"""
+        return self.destroy_network()
+    
+    def suspend_network(self):
+        """Suspend network by bringing interface down"""
+        try:
+            interface_name = self.get_interface_name()
+            subprocess.run(['ip', 'link', 'set', 'down', 'dev', interface_name], check=True)
+            self.status = 'suspended'
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error suspending network {self.name}: {e}")
+            return False
+    
+    def resume_network(self):
+        """Resume network by bringing interface up"""
+        try:
+            interface_name = self.get_interface_name()
+            subprocess.run(['ip', 'link', 'set', 'up', 'dev', interface_name], check=True)
+            self.status = 'pending'  # Will become active when peers connect
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error resuming network {self.name}: {e}")
+            return False
+    
+    @property
+    def is_active(self):
+        """Backward compatibility property for is_active"""
+        return self.status == 'active'
+    
+    def _configure_routing(self, interface_name):
         """Configure routing based on network type"""
         network_config = self.get_network_type_config()
         routing_style = network_config.get('routing_style')
@@ -253,23 +453,23 @@ class VPNNetwork(db.Model):
             # Enable IP forwarding and NAT for full tunnel
             subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=1'], check=True)
             subprocess.run(['iptables', '-t', 'nat', '-A', 'POSTROUTING', '-s', self.subnet, '-o', 'eth0', '-j', 'MASQUERADE'], check=True)
-            subprocess.run(['iptables', '-A', 'FORWARD', '-i', self.name, '-j', 'ACCEPT'], check=True)
-            subprocess.run(['iptables', '-A', 'FORWARD', '-o', self.name, '-j', 'ACCEPT'], check=True)
+            subprocess.run(['iptables', '-A', 'FORWARD', '-i', interface_name, '-j', 'ACCEPT'], check=True)
+            subprocess.run(['iptables', '-A', 'FORWARD', '-o', interface_name, '-j', 'ACCEPT'], check=True)
             
         elif routing_style == 'split_tunnel':
             # Only forward traffic for specific subnets
             subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=1'], check=True)
             # Allow forwarding for this interface
-            subprocess.run(['iptables', '-A', 'FORWARD', '-i', self.name, '-j', 'ACCEPT'], check=True)
-            subprocess.run(['iptables', '-A', 'FORWARD', '-o', self.name, '-j', 'ACCEPT'], check=True)
+            subprocess.run(['iptables', '-A', 'FORWARD', '-i', interface_name, '-j', 'ACCEPT'], check=True)
+            subprocess.run(['iptables', '-A', 'FORWARD', '-o', interface_name, '-j', 'ACCEPT'], check=True)
             
         elif routing_style in ['routed_mesh', 'transparent_l2', 'shared_l2_lan']:
             # Enable forwarding for mesh topologies
             subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=1'], check=True)
-            subprocess.run(['iptables', '-A', 'FORWARD', '-i', self.name, '-j', 'ACCEPT'], check=True)
-            subprocess.run(['iptables', '-A', 'FORWARD', '-o', self.name, '-j', 'ACCEPT'], check=True)
+            subprocess.run(['iptables', '-A', 'FORWARD', '-i', interface_name, '-j', 'ACCEPT'], check=True)
+            subprocess.run(['iptables', '-A', 'FORWARD', '-o', interface_name, '-j', 'ACCEPT'], check=True)
     
-    def _configure_overlay(self):
+    def _configure_overlay(self, interface_name):
         """Configure Layer 2 overlay if required"""
         network_config = self.get_network_type_config()
         
@@ -280,7 +480,7 @@ class VPNNetwork(db.Model):
         
         if overlay_mode == 'gretap':
             # Create GRE TAP interface for L2 point-to-point with VLAN support
-            gre_name = f"{self.name}-gre"
+            gre_name = f"{interface_name}-gre"
             bridge_name = self.get_bridge_name()
             
             try:
@@ -495,7 +695,7 @@ class Endpoint(db.Model):
     private_key = db.Column(db.Text, nullable=False)
     public_key = db.Column(db.Text, nullable=False)
     preshared_key = db.Column(db.Text)
-    is_active = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='pending')  # pending, active, suspended, disconnected, failed
     last_handshake = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -519,7 +719,8 @@ class Endpoint(db.Model):
         """Add this endpoint to the VPN network"""
         try:
             network = self.vpn_network
-            cmd = ['wg', 'set', network.name, 'peer', self.public_key, 
+            interface_name = network.get_interface_name()
+            cmd = ['wg', 'set', interface_name, 'peer', self.public_key, 
                    'allowed-ips', self.ip_address + '/32']
             
             if self.preshared_key:
@@ -541,23 +742,96 @@ class Endpoint(db.Model):
             # Handle Layer 2 overlay endpoint configuration
             self._configure_overlay_endpoint()
             
-            self.is_active = True
+            self.status = 'pending'  # Will become 'active' after successful handshake
             return True
             
         except subprocess.CalledProcessError as e:
             print(f"Error adding endpoint {self.name} to network: {e}")
+            self.status = 'failed'
             return False
     
     def remove_from_network(self):
         """Remove this endpoint from the VPN network"""
         try:
             network = self.vpn_network
-            subprocess.run(['wg', 'set', network.name, 'peer', self.public_key, 'remove'], check=True)
-            self.is_active = False
+            interface_name = network.get_interface_name()
+            subprocess.run(['wg', 'set', interface_name, 'peer', self.public_key, 'remove'], check=True)
+            self.status = 'disconnected'
             return True
         except subprocess.CalledProcessError as e:
             print(f"Error removing endpoint {self.name} from network: {e}")
+            self.status = 'failed'
             return False
+    
+    def suspend_endpoint(self):
+        """Suspend endpoint by removing from WireGuard but keeping in database"""
+        try:
+            network = self.vpn_network
+            interface_name = network.get_interface_name()
+            subprocess.run(['wg', 'set', interface_name, 'peer', self.public_key, 'remove'], check=True)
+            self.status = 'suspended'
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error suspending endpoint {self.name}: {e}")
+            return False
+    
+    def resume_endpoint(self):
+        """Resume endpoint by re-adding to WireGuard"""
+        try:
+            network = self.vpn_network
+            interface_name = network.get_interface_name()
+            cmd = ['wg', 'set', interface_name, 'peer', self.public_key, 
+                   'allowed-ips', self.ip_address + '/32']
+            
+            if self.preshared_key:
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+                    f.write(self.preshared_key)
+                    psk_file = f.name
+                cmd.extend(['preshared-key', psk_file])
+                
+            subprocess.run(cmd, check=True)
+            
+            if self.preshared_key:
+                import os
+                os.unlink(psk_file)
+            
+            self.status = 'pending'  # Will become active after handshake
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error resuming endpoint {self.name}: {e}")
+            return False
+    
+    def update_handshake_status(self):
+        """Update endpoint status based on last handshake"""
+        if self.status == 'suspended':
+            return self.status
+            
+        network = self.vpn_network
+        wg_status = network.get_wireguard_status()
+        
+        # Find this endpoint in the WireGuard peer list
+        for peer in wg_status['peers']:
+            if peer['public_key'] == self.public_key:
+                if 'last_handshake' in peer:
+                    self.status = 'active'
+                    # Update last_handshake timestamp in database
+                    # Note: WireGuard handshake parsing would need more sophisticated date parsing
+                    self.last_handshake = datetime.utcnow()
+                else:
+                    self.status = 'pending'
+                break
+        else:
+            # Peer not found in WireGuard - should be disconnected
+            if self.status not in ['suspended', 'failed']:
+                self.status = 'disconnected'
+        
+        return self.status
+    
+    @property
+    def is_active(self):
+        """Backward compatibility property for is_active"""
+        return self.status == 'active'
     
     def _configure_overlay_endpoint(self):
         """Configure Layer 2 overlay for this endpoint if needed"""
@@ -670,3 +944,86 @@ class EndpointConfig(db.Model):
     
     def __repr__(self):
         return f'<EndpointConfig {self.endpoint.name} v{self.version}>'
+
+
+class AuditLog(db.Model):
+    """Audit logging for security events and user actions"""
+    __tablename__ = 'audit_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Nullable for system events
+    event_type = db.Column(db.String(50), nullable=False)  # login, logout, create, update, delete, etc.
+    resource_type = db.Column(db.String(50), nullable=True)  # user, network, endpoint, etc.
+    resource_id = db.Column(db.Integer, nullable=True)  # ID of the affected resource
+    event_description = db.Column(db.Text, nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.Text, nullable=True)
+    session_id = db.Column(db.String(255), nullable=True)
+    success = db.Column(db.Boolean, default=True)
+    error_message = db.Column(db.Text, nullable=True)
+    additional_data = db.Column(db.Text, nullable=True)  # JSON data for additional context
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    def __repr__(self):
+        return f'<AuditLog {self.event_type} by {self.user.username if self.user else "System"} at {self.timestamp}>'
+    
+    @staticmethod
+    def log_event(event_type, description, user=None, resource_type=None, resource_id=None, 
+                  ip_address=None, user_agent=None, session_id=None, success=True, 
+                  error_message=None, additional_data=None):
+        """Helper method to create audit log entries"""
+        log_entry = AuditLog(
+            user_id=user.id if user else None,
+            event_type=event_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            event_description=description,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            session_id=session_id,
+            success=success,
+            error_message=error_message,
+            additional_data=additional_data
+        )
+        
+        db.session.add(log_entry)
+        # Don't commit here - let the calling function handle it
+        return log_entry
+    
+    @staticmethod
+    def get_user_activity(user_id, limit=50):
+        """Get recent activity for a specific user"""
+        return AuditLog.query.filter_by(user_id=user_id).order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    
+    @staticmethod
+    def get_security_events(limit=100):
+        """Get recent security-related events"""
+        security_events = ['login', 'logout', 'failed_login', 'account_locked', 'password_change', 
+                          'user_created', 'user_deleted', 'user_disabled', 'session_expired']
+        return AuditLog.query.filter(AuditLog.event_type.in_(security_events)).order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    
+    @staticmethod
+    def get_failed_attempts(hours=24):
+        """Get failed login attempts in the last N hours"""
+        from datetime import timedelta
+        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        return AuditLog.query.filter(
+            AuditLog.event_type == 'failed_login',
+            AuditLog.timestamp >= cutoff_time
+        ).order_by(AuditLog.timestamp.desc()).all()
+    
+    def to_dict(self):
+        """Convert audit log to dictionary for JSON serialization"""
+        return {
+            'id': self.id,
+            'user': self.user.username if self.user else 'System',
+            'event_type': self.event_type,
+            'resource_type': self.resource_type,
+            'resource_id': self.resource_id,
+            'description': self.event_description,
+            'ip_address': self.ip_address,
+            'user_agent': self.user_agent,
+            'success': self.success,
+            'error_message': self.error_message,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None
+        }
