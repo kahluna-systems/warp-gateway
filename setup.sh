@@ -89,7 +89,7 @@ fi
 
 # ── Initialize database ─────────────────────────────────────────────────────
 echo "[6/7] Initializing database..."
-./venv/bin/python3 -c "
+PYTHONPATH="$SCRIPT_DIR" ./venv/bin/python3 -c "
 import os
 os.environ.setdefault('SECRET_KEY', 'setup')
 os.environ.setdefault('DATABASE_URL', 'sqlite:///warp_gateway.db')
@@ -103,9 +103,9 @@ with app.app_context():
 
 # ── Create initial admin user ────────────────────────────────────────────────
 echo "[7/7] Creating admin user..."
-ADMIN_PASSWORD=$(./venv/bin/python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16)))")
+ADMIN_PASSWORD=$(PYTHONPATH="$SCRIPT_DIR" ./venv/bin/python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16)))")
 
-./venv/bin/python3 -c "
+PYTHONPATH="$SCRIPT_DIR" ./venv/bin/python3 -c "
 import os
 os.environ.setdefault('SECRET_KEY', 'setup')
 os.environ.setdefault('DATABASE_URL', 'sqlite:///warp_gateway.db')
