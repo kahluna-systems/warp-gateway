@@ -1,118 +1,141 @@
-{% extends "base.html" %}
-
-{% block title %}Endpoints - KahLuna WARP VPN Gateway{% endblock %}
+{% extends "new/base.html" %}
+{% block title %}Endpoints - WARP Gateway{% endblock %}
+{% block page_title %}VPN Endpoints{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1><i class="fas fa-users"></i> Endpoints</h1>
-            <a href="{{ url_for('add_endpoint') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Add Endpoint
-            </a>
-        </div>
+<div class="card">
+    <div class="card-header">
+        <h2>Endpoints</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-form').style.display='block'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Endpoint
+        </button>
     </div>
+
+    <!-- Filter by network -->
+    <div class="mb-4">
+        <form method="GET" class="form-inline">
+            <div class="form-group" style="margin-bottom:0;">
+                <select name="network_id" onchange="this.form.submit()">
+                    <option value="">All Networks</option>
+                    {% for net in networks %}
+                    <option value="{{ net.id }}" {% if selected_network_id == net.id %}selected{% endif %}>{{ net.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+
+    {% if endpoints %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Network</th>
+                <th>IP Address</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ep in endpoints %}
+            <tr>
+                <td><strong>{{ ep.name }}</strong></td>
+                <td>{{ ep.vpn_network.name }}</td>
+                <td><code>{{ ep.ip_address }}</code></td>
+                <td><span class="badge badge-gray">{{ ep.endpoint_type }}</span></td>
+                <td>
+                    {% if ep.status == 'active' %}<span class="badge badge-green">Active</span>
+                    {% elif ep.status == 'suspended' %}<span class="badge badge-amber">Suspended</span>
+                    {% elif ep.status == 'failed' %}<span class="badge badge-red">Failed</span>
+                    {% else %}<span class="badge badge-gray">{{ ep.status }}</span>{% endif %}
+                </td>
+                <td class="flex gap-2">
+                    <a href="{{ url_for('endpoints.config', endpoint_id=ep.id) }}" class="btn btn-secondary btn-sm">Config</a>
+                    {% if ep.status == 'suspended' %}
+                    <form method="POST" action="{{ url_for('endpoints.resume', endpoint_id=ep.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-primary btn-sm">Resume</button>
+                    </form>
+                    {% elif ep.status != 'failed' %}
+                    <form method="POST" action="{{ url_for('endpoints.suspend', endpoint_id=ep.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-secondary btn-sm">Suspend</button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('endpoints.remove', endpoint_id=ep.id) }}" style="display:inline;" onsubmit="return confirm('Remove endpoint {{ ep.name }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <p>No endpoints configured</p>
+    </div>
+    {% endif %}
 </div>
 
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-body">
-                {% if endpoints %}
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Interface</th>
-                                <th>IP Address</th>
-                                <th>Public Key</th>
-                                <th>Created</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for endpoint in endpoints %}
-                            <tr>
-                                <td><strong>{{ endpoint.name }}</strong></td>
-                                <td>{{ endpoint.vpn_network.name }}</td>
-                                <td><code>{{ endpoint.ip_address }}</code></td>
-                                <td>
-                                    <code class="text-truncate d-inline-block" style="max-width: 200px;">
-                                        {{ endpoint.public_key }}
-                                    </code>
-                                </td>
-                                <td>{{ endpoint.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-outline-info" title="View Config">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <a href="{{ url_for('download_endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-outline-success" title="Download Config">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                        <button class="btn btn-outline-primary" onclick="showQR({{ endpoint.id }})" title="QR Code">
-                                            <i class="fas fa-qrcode"></i>
-                                        </button>
-                                        <form method="POST" action="{{ url_for('delete_endpoint', endpoint_id=endpoint.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete endpoint \"{{ endpoint.name }}\"? This action cannot be undone.')">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
-                    <h4>No Endpoints Found</h4>
-                    <p class="text-muted">Create your first endpoint to get started.</p>
-                    <a href="{{ url_for('add_endpoint') }}" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Add Endpoint
-                    </a>
-                </div>
-                {% endif %}
+<!-- Add Endpoint Form -->
+<div class="card" id="add-form" style="display:none;">
+    <div class="card-header">
+        <h2>Add Endpoint</h2>
+    </div>
+    <form method="POST" action="{{ url_for('endpoints.add') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Network</label>
+                <select name="network_id" required>
+                    {% for net in networks %}
+                    <option value="{{ net.id }}" {% if selected_network_id == net.id %}selected{% endif %}>{{ net.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Endpoint Name</label>
+                <input type="text" name="name" required placeholder="laptop-john">
             </div>
         </div>
-    </div>
-</div>
-
-<!-- QR Code Modal -->
-<div class="modal fade" id="qrModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">QR Code for Peer Configuration</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Endpoint Type</label>
+                <select name="endpoint_type">
+                    <option value="mobile">Mobile Device</option>
+                    <option value="cpe">CPE / Router</option>
+                    <option value="gateway">Gateway</option>
+                </select>
             </div>
-            <div class="modal-body text-center">
-                <div id="qrCode"></div>
-                <p class="mt-3 text-muted">Scan this QR code with your WireGuard client</p>
+            <div class="form-group">
+                <label>Preshared Key</label>
+                <select name="use_psk">
+                    <option value="on">Enabled (recommended)</option>
+                    <option value="off">Disabled</option>
+                </select>
             </div>
         </div>
-    </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="rate_limit_enabled" value="on" onchange="document.getElementById('ep-rl').style.display=this.checked?'grid':'none'"> Override Network Rate Limit</label>
+        </div>
+        <div class="form-row" id="ep-rl" style="display:none;">
+            <div class="form-group">
+                <label>Download (Mbps)</label>
+                <input type="number" name="rate_limit_download_mbps" step="0.1">
+            </div>
+            <div class="form-group">
+                <label>Upload (Mbps)</label>
+                <input type="number" name="rate_limit_upload_mbps" step="0.1">
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Add Endpoint</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-function showQR(endpointId) {
-    fetch(`/endpoints/${endpointId}/qr`)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('qrCode').innerHTML = `<img src="data:image/png;base64,${data.qr_code}" class="img-fluid" alt="QR Code">`;
-            const modal = new bootstrap.Modal(document.getElementById('qrModal'));
-            modal.show();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error loading QR code');
-        });
-}
-</script>
 {% endblock %}

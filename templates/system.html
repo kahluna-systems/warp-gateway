@@ -1,0 +1,135 @@
+{% extends "new/base.html" %}
+{% block title %}System - WARP Gateway{% endblock %}
+{% block page_title %}System Settings{% endblock %}
+
+{% block content %}
+<!-- System Health -->
+<div class="card-grid">
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+            <h3>CPU</h3>
+        </div>
+        <div class="status-card-value {% if health.system.cpu_percent|default(0) > 80 %}text-red{% elif health.system.cpu_percent|default(0) > 60 %}text-amber{% else %}text-green{% endif %}">
+            {{ health.system.cpu_percent|default(0) }}%
+        </div>
+        <div class="status-card-label">{{ health.system.cpu_count|default(0) }} cores</div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/></svg>
+            <h3>Memory</h3>
+        </div>
+        <div class="status-card-value {% if health.system.memory.percent|default(0) > 85 %}text-red{% elif health.system.memory.percent|default(0) > 70 %}text-amber{% else %}text-green{% endif %}">
+            {{ health.system.memory.percent|default(0) }}%
+        </div>
+        <div class="status-card-label">{{ health.system.memory.used_mb|default(0) }} / {{ health.system.memory.total_mb|default(0) }} MB</div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <h3>Disk</h3>
+        </div>
+        <div class="status-card-value {% if health.system.disk.percent|default(0) > 90 %}text-red{% elif health.system.disk.percent|default(0) > 75 %}text-amber{% else %}text-green{% endif %}">
+            {{ health.system.disk.percent|default(0) }}%
+        </div>
+        <div class="status-card-label">{{ health.system.disk.used_gb|default(0) }} / {{ health.system.disk.total_gb|default(0) }} GB</div>
+    </div>
+</div>
+
+<!-- Dependencies -->
+<div class="card">
+    <div class="card-header">
+        <h2>System Dependencies</h2>
+        <span class="badge {% if health.dependencies.ready %}badge-green{% else %}badge-red{% endif %}">
+            {{ health.dependencies.installed_count|default(0) }} / {{ health.dependencies.total_count|default(0) }} installed
+        </span>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Tool</th>
+                <th>Description</th>
+                <th>Required</th>
+                <th>Status</th>
+                <th>Version</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dep in health.dependencies.dependencies|default([]) %}
+            <tr>
+                <td><strong>{{ dep.name }}</strong></td>
+                <td class="text-muted">{{ dep.description }}</td>
+                <td>{% if dep.required %}<span class="badge badge-amber">Required</span>{% else %}<span class="badge badge-gray">Optional</span>{% endif %}</td>
+                <td>
+                    {% if dep.installed %}
+                    <span class="badge badge-green">Installed</span>
+                    {% else %}
+                    <span class="badge badge-red">Missing</span>
+                    {% endif %}
+                </td>
+                <td class="text-sm text-muted">{{ dep.version or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- IP Forwarding -->
+<div class="card">
+    <div class="card-header">
+        <h2>Network Settings</h2>
+    </div>
+    <div class="text-sm" style="line-height:2;">
+        <div>
+            <strong>IP Forwarding:</strong>
+            {% if health.dependencies.ip_forwarding %}
+            <span class="badge badge-green">Enabled</span>
+            {% else %}
+            <span class="badge badge-red">Disabled</span>
+            {% endif %}
+        </div>
+        <div><strong>Hostname:</strong> {{ health.system.hostname|default('unknown') }}</div>
+        <div><strong>Platform:</strong> {{ health.system.platform|default('unknown') }}</div>
+        <div><strong>Uptime:</strong> {{ health.system.uptime_human|default('N/A') }}</div>
+    </div>
+</div>
+
+<!-- Nexus Registration -->
+<div class="card">
+    <div class="card-header">
+        <h2>KahLuna Nexus Integration</h2>
+        {% if nexus_status.registered %}
+        <span class="badge badge-green">Registered</span>
+        {% else %}
+        <span class="badge badge-gray">Not Registered</span>
+        {% endif %}
+    </div>
+    {% if nexus_status.registered %}
+    <div class="text-sm" style="line-height:2;">
+        <div><strong>Platform URL:</strong> {{ nexus_status.platform_url }}</div>
+        <div><strong>Service ID:</strong> <code>{{ nexus_status.service_id }}</code></div>
+        <div><strong>Gateway Name:</strong> {{ nexus_status.gateway_name }}</div>
+    </div>
+    <div class="mt-4">
+        <form method="POST" action="{{ url_for('system.nexus_deregister') }}" onsubmit="return confirm('Deregister from KahLuna Nexus?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger btn-sm">Deregister</button>
+        </form>
+    </div>
+    {% else %}
+    <form method="POST" action="{{ url_for('system.nexus_register') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group"><label>Platform URL</label><input type="text" name="platform_url" required placeholder="https://nexus.kahluna.io"></div>
+            <div class="form-group"><label>Provisioning Token</label><input type="text" name="token" required placeholder="tok_..."></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Gateway Name</label><input type="text" name="gateway_name" required placeholder="office-gateway"></div>
+            <div class="form-group"><label>Gateway URL</label><input type="text" name="gateway_url" required placeholder="https://gateway.example.com:5000"></div>
+        </div>
+        <button type="submit" class="btn btn-primary">Register</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

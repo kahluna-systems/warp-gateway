@@ -1,293 +1,119 @@
-{% extends "base.html" %}
+{% extends "new/base.html" %}
+{% block title %}{{ network.name }} - WARP Gateway{% endblock %}
+{% block page_title %}{{ network.name }}{% endblock %}
 
-{% block title %}{{ network.name }} - Network Details{% endblock %}
-
-{% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1><i class="fas fa-network-wired"></i> {{ network.name }}</h1>
-            <div>
-                <a href="{{ url_for('networks') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Networks
-                </a>
-                <a href="{{ url_for('add_endpoint') }}?network_id={{ network.id }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Add Endpoint
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h5>Network Configuration</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Basic Information</h6>
-                        <table class="table table-sm">
-                            <tr>
-                                <td><strong>Network Type:</strong></td>
-                                <td><span class="badge bg-primary">{{ network_config.name }}</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Port:</strong></td>
-                                <td><code>{{ network.port }}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Subnet:</strong></td>
-                                <td><code>{{ network.subnet }}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Status:</strong></td>
-                                <td>
-                                    {% if network.is_active %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Inactive</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Network Type Details</h6>
-                        <table class="table table-sm">
-                            <tr>
-                                <td><strong>Routing Style:</strong></td>
-                                <td>{{ network_config.routing_style.replace('_', ' ').title() }}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Allowed IPs:</strong></td>
-                                <td><code>{{ network_config.allowed_ips }}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Peer to Peer:</strong></td>
-                                <td>{{ 'Yes' if network_config.peer_to_peer else 'No' }}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Max Endpoints:</strong></td>
-                                <td>{{ network_config.max_peers or 'Unlimited' }}</td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-                
-                {% if network.vlan_id or network.vlan_range or network.bridge_name %}
-                <hr>
-                <h6>VLAN Configuration</h6>
-                <div class="row">
-                    <div class="col-md-12">
-                        <table class="table table-sm">
-                            {% if network.vlan_id %}
-                            <tr>
-                                <td><strong>VLAN ID:</strong></td>
-                                <td><span class="badge bg-info">{{ network.vlan_id }}</span></td>
-                            </tr>
-                            {% endif %}
-                            {% if network.vlan_range %}
-                            <tr>
-                                <td><strong>VLAN Range:</strong></td>
-                                <td><code>{{ network.vlan_range }}</code></td>
-                            </tr>
-                            {% endif %}
-                            {% if network.bridge_name %}
-                            <tr>
-                                <td><strong>Bridge Name:</strong></td>
-                                <td><code>{{ network.bridge_name }}</code></td>
-                            </tr>
-                            {% endif %}
-                        </table>
-                    </div>
-                </div>
-                {% endif %}
-                
-                {% if network.custom_allowed_ips %}
-                <hr>
-                <h6>Custom Allowed IPs</h6>
-                <p><code>{{ network.custom_allowed_ips }}</code></p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5>Statistics</h5>
-            </div>
-            <div class="card-body">
-                <div class="text-center">
-                    <h2 class="text-primary">{{ endpoints|length }}</h2>
-                    <p class="text-muted">Total Endpoints</p>
-                    
-                    {% if network_config.max_peers %}
-                    <div class="progress mb-3">
-                        <div class="progress-bar" style="width: {{ (endpoints|length / network_config.max_peers * 100)|round }}%"></div>
-                    </div>
-                    <p class="small text-muted">{{ endpoints|length }} / {{ network_config.max_peers }} endpoints used</p>
-                    {% endif %}
-                </div>
-                
-                <hr>
-                
-                <h6>Endpoint Types</h6>
-                {% set endpoint_types = {} %}
-                {% for endpoint in endpoints %}
-                    {% set _ = endpoint_types.update({endpoint.endpoint_type: endpoint_types.get(endpoint.endpoint_type, 0) + 1}) %}
-                {% endfor %}
-                
-                {% if endpoint_types %}
-                    {% for type, count in endpoint_types.items() %}
-                    <div class="d-flex justify-content-between">
-                        <span>{{ type.replace('_', ' ').title() }}:</span>
-                        <span class="badge bg-secondary">{{ count }}</span>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted small">No endpoints configured</p>
-                {% endif %}
-            </div>
-        </div>
-        
-        <div class="card mt-3">
-            <div class="card-header">
-                <h5>Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('add_endpoint') }}?network_id={{ network.id }}" class="btn btn-primary btn-sm">
-                        <i class="fas fa-plus"></i> Add Endpoint
-                    </a>
-                    <a href="{{ url_for('bulk_endpoints') }}?network_id={{ network.id }}" class="btn btn-info btn-sm">
-                        <i class="fas fa-plus"></i> Bulk Add Endpoints
-                    </a>
-                    <button class="btn btn-outline-warning btn-sm">
-                        <i class="fas fa-edit"></i> Edit Network
-                    </button>
-                    <form method="POST" action="{{ url_for('delete_network', network_id=network.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete network \"{{ network.name }}\"? {% if endpoints %}\n\nWARNING: This network has {{ endpoints|length }} endpoint(s). You must delete all endpoints first.{% endif %}')">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" class="btn btn-outline-danger btn-sm" {% if endpoints %}disabled title="Remove all endpoints first"{% endif %}>
-                            <i class="fas fa-trash"></i> Delete Network
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5>Network Endpoints</h5>
-                    <span class="badge bg-primary">{{ endpoints|length }} endpoints</span>
-                </div>
-            </div>
-            <div class="card-body">
-                {% if endpoints %}
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Type</th>
-                                <th>IP Address</th>
-                                <th>Public Key</th>
-                                <th>Created</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for endpoint in endpoints %}
-                            <tr>
-                                <td><strong>{{ endpoint.name }}</strong></td>
-                                <td>
-                                    <span class="badge bg-info">{{ endpoint.endpoint_type.title() }}</span>
-                                </td>
-                                <td><code>{{ endpoint.ip_address }}</code></td>
-                                <td>
-                                    <code class="text-truncate d-inline-block" style="max-width: 200px;">
-                                        {{ endpoint.public_key }}
-                                    </code>
-                                </td>
-                                <td>{{ endpoint.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-outline-info" title="View Config">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <a href="{{ url_for('download_endpoint_config', endpoint_id=endpoint.id) }}" class="btn btn-outline-success" title="Download Config">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                        <button class="btn btn-outline-primary" onclick="showQR({{ endpoint.id }})" title="QR Code">
-                                            <i class="fas fa-qrcode"></i>
-                                        </button>
-                                        <form method="POST" action="{{ url_for('delete_endpoint', endpoint_id=endpoint.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete endpoint \"{{ endpoint.name }}\"? This action cannot be undone.')">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
-                    <h4>No Endpoints in this Network</h4>
-                    <p class="text-muted">Add your first endpoint to get started with this network.</p>
-                    <a href="{{ url_for('add_endpoint') }}?network_id={{ network.id }}" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Add Endpoint
-                    </a>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- QR Code Modal -->
-<div class="modal fade" id="qrModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">QR Code for Endpoint Configuration</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center">
-                <div id="qrCode"></div>
-                <p class="mt-3 text-muted">Scan this QR code with your WireGuard client</p>
-            </div>
-        </div>
-    </div>
+{% block topbar_actions %}
+<div class="flex gap-2">
+    {% if network.status == 'suspended' %}
+    <form method="POST" action="{{ url_for('networks.resume', network_id=network.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary btn-sm">Resume</button>
+    </form>
+    {% elif network.status == 'active' %}
+    <form method="POST" action="{{ url_for('networks.suspend', network_id=network.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-secondary btn-sm">Suspend</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('networks.index') }}" class="btn btn-secondary btn-sm">Back to Networks</a>
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-function showQR(endpointId) {
-    fetch(`/endpoints/${endpointId}/qr`)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('qrCode').innerHTML = `<img src="data:image/png;base64,${data.qr_code}" class="img-fluid" alt="QR Code">`;
-            const modal = new bootstrap.Modal(document.getElementById('qrModal'));
-            modal.show();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error loading QR code');
-        });
-}
-</script>
+{% block content %}
+<!-- Network Info -->
+<div class="card-grid">
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <h3>Network Info</h3>
+        </div>
+        <div class="text-sm" style="line-height:1.8;">
+            <div><strong>Type:</strong> {{ network_types.get(network.network_type, {}).get('name', network.network_type) }}</div>
+            <div><strong>Subnet:</strong> <code>{{ network.subnet }}</code></div>
+            <div><strong>Port:</strong> {{ network.port }}</div>
+            <div><strong>Interface:</strong> <code>{{ network.get_interface_name() }}</code></div>
+            <div><strong>Public Key:</strong> <code class="text-sm">{{ network.public_key[:24] }}...</code></div>
+        </div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <h3>WireGuard Status</h3>
+        </div>
+        <div class="text-sm" style="line-height:1.8;">
+            <div><strong>Status:</strong>
+                {% if network.status == 'active' %}<span class="badge badge-green">Active</span>
+                {% elif network.status == 'suspended' %}<span class="badge badge-amber">Suspended</span>
+                {% else %}<span class="badge badge-gray">{{ network.status }}</span>{% endif %}
+            </div>
+            <div><strong>Listening Port:</strong> {{ wg_status.listening_port if wg_status else '-' }}</div>
+            <div><strong>Connected Peers:</strong> {{ wg_status.connected_peers if wg_status else 0 }} / {{ wg_status.peer_count if wg_status else 0 }}</div>
+        </div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <h3>Rate Limiting</h3>
+        </div>
+        {% if network.rate_limit_enabled %}
+        <div class="text-sm" style="line-height:1.8;">
+            <div><strong>Download:</strong> {{ network.rate_limit_download_mbps }} Mbps</div>
+            <div><strong>Upload:</strong> {{ network.rate_limit_upload_mbps }} Mbps</div>
+            <div><strong>Burst:</strong> {{ network.rate_limit_burst_factor }}x</div>
+        </div>
+        {% else %}
+        <div class="text-muted text-sm">Rate limiting disabled</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Endpoints -->
+<div class="card">
+    <div class="card-header">
+        <h2>Endpoints ({{ endpoints|length }})</h2>
+        <a href="{{ url_for('endpoints.index', network_id=network.id) }}" class="btn btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Endpoint
+        </a>
+    </div>
+    {% if endpoints %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>IP Address</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ep in endpoints %}
+            <tr>
+                <td><strong>{{ ep.name }}</strong></td>
+                <td><code>{{ ep.ip_address }}</code></td>
+                <td><span class="badge badge-gray">{{ ep.endpoint_type }}</span></td>
+                <td>
+                    {% if ep.status == 'active' %}<span class="badge badge-green">Active</span>
+                    {% elif ep.status == 'suspended' %}<span class="badge badge-amber">Suspended</span>
+                    {% elif ep.status == 'failed' %}<span class="badge badge-red">Failed</span>
+                    {% else %}<span class="badge badge-gray">{{ ep.status }}</span>{% endif %}
+                </td>
+                <td class="flex gap-2">
+                    <a href="{{ url_for('endpoints.config', endpoint_id=ep.id) }}" class="btn btn-secondary btn-sm">Config</a>
+                    <form method="POST" action="{{ url_for('endpoints.remove', endpoint_id=ep.id) }}" style="display:inline;" onsubmit="return confirm('Remove endpoint {{ ep.name }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No endpoints in this network</p>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

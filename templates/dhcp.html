@@ -1,0 +1,149 @@
+{% extends "new/base.html" %}
+{% block title %}DHCP - WARP Gateway{% endblock %}
+{% block page_title %}DHCP Server{% endblock %}
+
+{% block content %}
+<!-- DHCP Status -->
+<div class="card-grid">
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <h3>Service Status</h3>
+        </div>
+        <div class="status-card-value">
+            {% if status.running %}<span class="text-green">Running</span>{% else %}<span class="text-red">Stopped</span>{% endif %}
+        </div>
+        <div class="status-card-label">{{ leases|length }} active leases</div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>
+            <h3>Reservations</h3>
+        </div>
+        <div class="status-card-value">{{ reservations|length }}</div>
+        <div class="status-card-label">Static DHCP reservations</div>
+    </div>
+</div>
+
+<!-- DHCP Configuration -->
+<div class="card">
+    <div class="card-header"><h2>DHCP Configuration</h2></div>
+    <form method="POST" action="{{ url_for('dhcp.configure') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Interface</label>
+                <select name="interface" required>
+                    {% for iface in lan_interfaces %}
+                    <option value="{{ iface.name }}" {% if config and config.interface == iface.name %}selected{% endif %}>{{ iface.name }} ({{ iface.role }})</option>
+                    {% endfor %}
+                    {% if not lan_interfaces %}
+                    <option value="">No LAN interfaces configured</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Netmask</label>
+                <input type="text" name="netmask" value="{{ config.netmask if config else '255.255.255.0' }}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Range Start</label>
+                <input type="text" name="range_start" required value="{{ config.range_start if config else '' }}" placeholder="192.168.1.100">
+            </div>
+            <div class="form-group">
+                <label>Range End</label>
+                <input type="text" name="range_end" required value="{{ config.range_end if config else '' }}" placeholder="192.168.1.200">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Gateway</label>
+                <input type="text" name="gateway" value="{{ config.gateway if config else '' }}" placeholder="192.168.1.1">
+            </div>
+            <div class="form-group">
+                <label>DNS Servers</label>
+                <input type="text" name="dns_servers" value="{{ config.dns_servers if config else '1.1.1.1,8.8.8.8' }}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Lease Time</label>
+            <input type="text" name="lease_time" value="{{ config.lease_time if config else '12h' }}" style="max-width:200px;">
+        </div>
+        <button type="submit" class="btn btn-primary">Save and Apply</button>
+    </form>
+</div>
+
+<!-- Active Leases -->
+<div class="card">
+    <div class="card-header"><h2>Active Leases</h2></div>
+    {% if leases %}
+    <table>
+        <thead><tr><th>IP Address</th><th>MAC Address</th><th>Hostname</th><th>Expiry</th></tr></thead>
+        <tbody>
+            {% for lease in leases %}
+            <tr>
+                <td><code>{{ lease.ip }}</code></td>
+                <td><code class="text-sm">{{ lease.mac }}</code></td>
+                <td>{{ lease.hostname or '-' }}</td>
+                <td class="text-muted text-sm">{{ lease.expiry }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state"><p>No active DHCP leases</p></div>
+    {% endif %}
+</div>
+
+<!-- Static Reservations -->
+<div class="card">
+    <div class="card-header">
+        <h2>Static Reservations</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('res-form').style.display='block'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Reservation
+        </button>
+    </div>
+    {% if reservations %}
+    <table>
+        <thead><tr><th>MAC Address</th><th>IP Address</th><th>Hostname</th><th></th></tr></thead>
+        <tbody>
+            {% for res in reservations %}
+            <tr>
+                <td><code class="text-sm">{{ res.mac }}</code></td>
+                <td><code>{{ res.ip }}</code></td>
+                <td>{{ res.hostname or '-' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('dhcp.remove_reservation', res_id=res.id) }}" style="display:inline;" onsubmit="return confirm('Remove reservation?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state"><p>No static reservations</p></div>
+    {% endif %}
+</div>
+
+<!-- Add Reservation Form -->
+<div class="card" id="res-form" style="display:none;">
+    <div class="card-header"><h2>Add Static Reservation</h2></div>
+    <form method="POST" action="{{ url_for('dhcp.add_reservation') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group"><label>MAC Address</label><input type="text" name="mac" required placeholder="AA:BB:CC:DD:EE:FF"></div>
+            <div class="form-group"><label>IP Address</label><input type="text" name="ip" required placeholder="192.168.1.50"></div>
+        </div>
+        <div class="form-group"><label>Hostname</label><input type="text" name="hostname" placeholder="printer-office"></div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Add Reservation</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('res-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

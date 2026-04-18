@@ -1,0 +1,66 @@
+{% extends "new/base.html" %}
+{% block title %}DNS - WARP Gateway{% endblock %}
+{% block page_title %}DNS Settings{% endblock %}
+
+{% block content %}
+<!-- Upstream DNS -->
+<div class="card">
+    <div class="card-header"><h2>Upstream DNS Servers</h2></div>
+    <form method="POST" action="{{ url_for('dns.set_upstream') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>DNS Servers (comma-separated)</label>
+            <input type="text" name="servers" value="{{ upstream_servers|join(', ') }}" placeholder="1.1.1.1, 8.8.8.8">
+        </div>
+        <button type="submit" class="btn btn-primary">Update</button>
+    </form>
+</div>
+
+<!-- Local DNS Overrides -->
+<div class="card">
+    <div class="card-header">
+        <h2>Local DNS Overrides</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('dns-form').style.display='block'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Override
+        </button>
+    </div>
+    {% if overrides %}
+    <table>
+        <thead><tr><th>Hostname</th><th>IP Address</th><th></th></tr></thead>
+        <tbody>
+            {% for o in overrides %}
+            <tr>
+                <td><strong>{{ o.hostname }}</strong></td>
+                <td><code>{{ o.ip }}</code></td>
+                <td>
+                    <form method="POST" action="{{ url_for('dns.remove_override', override_id=o.id) }}" style="display:inline;" onsubmit="return confirm('Remove override for {{ o.hostname }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state"><p>No local DNS overrides configured</p></div>
+    {% endif %}
+</div>
+
+<!-- Add Override Form -->
+<div class="card" id="dns-form" style="display:none;">
+    <div class="card-header"><h2>Add DNS Override</h2></div>
+    <form method="POST" action="{{ url_for('dns.add_override') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group"><label>Hostname</label><input type="text" name="hostname" required placeholder="myserver.local"></div>
+            <div class="form-group"><label>IP Address</label><input type="text" name="ip" required placeholder="192.168.1.10"></div>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Add Override</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('dns-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

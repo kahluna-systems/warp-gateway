@@ -1,102 +1,117 @@
-{% extends "base.html" %}
-
-{% block title %}VPN Networks - KahLuna WARP VPN Gateway{% endblock %}
+{% extends "new/base.html" %}
+{% block title %}VPN Networks - WARP Gateway{% endblock %}
+{% block page_title %}VPN Networks{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1><i class="fas fa-network-wired"></i> VPN Networks</h1>
-            <a href="{{ url_for('network_wizard_step1') }}" class="btn btn-primary">
-                <i class="fas fa-magic"></i> Create Network
-            </a>
-        </div>
+<!-- Network List -->
+<div class="card">
+    <div class="card-header">
+        <h2>VPN Networks</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('create-form').style.display='block'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Network
+        </button>
     </div>
+    {% if networks %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Subnet</th>
+                <th>Port</th>
+                <th>Endpoints</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for net in networks %}
+            <tr>
+                <td><a href="{{ url_for('networks.detail', network_id=net.id) }}" style="color:var(--accent);text-decoration:none;font-weight:500;">{{ net.name }}</a></td>
+                <td>{{ network_types.get(net.network_type, {}).get('name', net.network_type) }}</td>
+                <td><code>{{ net.subnet }}</code></td>
+                <td>{{ net.port }}</td>
+                <td>{{ net.endpoints|length }}</td>
+                <td>
+                    {% if net.status == 'active' %}
+                    <span class="badge badge-green">Active</span>
+                    {% elif net.status == 'suspended' %}
+                    <span class="badge badge-amber">Suspended</span>
+                    {% elif net.status == 'failed' %}
+                    <span class="badge badge-red">Failed</span>
+                    {% else %}
+                    <span class="badge badge-gray">{{ net.status }}</span>
+                    {% endif %}
+                </td>
+                <td class="flex gap-2">
+                    <a href="{{ url_for('networks.detail', network_id=net.id) }}" class="btn btn-secondary btn-sm">View</a>
+                    <form method="POST" action="{{ url_for('networks.delete', network_id=net.id) }}" style="display:inline;" onsubmit="return confirm('Delete network {{ net.name }}? This will remove all endpoints.')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <p>No VPN networks configured</p>
+        <p class="text-sm text-muted mt-2">Create your first network to get started</p>
+    </div>
+    {% endif %}
 </div>
 
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-body">
-                {% if networks %}
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Network Type</th>
-                                <th>VCID</th>
-                                <th>Port</th>
-                                <th>Subnet</th>
-                                <th>Endpoints</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for network in networks %}
-                            <tr>
-                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                    <strong>{{ network.name }}</strong>
-                                    {% if network.peer_communication_enabled %}
-                                        <span class="badge bg-success ms-2" title="Peer Communication Enabled">MESH</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary ms-2" title="Hub and Spoke">HUB</span>
-                                    {% endif %}
-                                </td>
-                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                    <span class="badge bg-primary">{{ network.get_network_type_config().get('name', 'Unknown') }}</span>
-                                </td>
-                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                    <code class="text-primary">{{ "%04d-%04d"|format(network.vcid // 10000, network.vcid % 10000) }}</code>
-                                </td>
-                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                    <code>{{ network.port }}</code>
-                                </td>
-                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                    <code>{{ network.subnet }}</code>
-                                    <small class="text-muted d-block">{{ network.expected_users }} users</small>
-                                </td>
-                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                    <span class="badge bg-success">{{ network.endpoints|length }} endpoints</span>
-                                </td>
-                                <td style="cursor: pointer;" onclick="window.location.href='{{ url_for('network_detail', network_id=network.id) }}'">
-                                    {% if network.is_active %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Inactive</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('network_detail', network_id=network.id) }}" class="btn btn-outline-primary" title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <form method="POST" action="{{ url_for('delete_network', network_id=network.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete network \"{{ network.name }}\"? This action cannot be undone.')">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="fas fa-network-wired fa-3x text-muted mb-3"></i>
-                    <h4>No VPN Networks Found</h4>
-                    <p class="text-muted">Create your first VPN network to get started.</p>
-                    <a href="{{ url_for('network_wizard_step1') }}" class="btn btn-primary">
-                        <i class="fas fa-magic"></i> Create Network
-                    </a>
-                </div>
-                {% endif %}
+<!-- Create Network Form -->
+<div class="card" id="create-form" style="display:none;">
+    <div class="card-header">
+        <h2>Create VPN Network</h2>
+    </div>
+    <form method="POST" action="{{ url_for('networks.create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Network Name</label>
+                <input type="text" name="name" required placeholder="office-vpn">
+            </div>
+            <div class="form-group">
+                <label>Network Type</label>
+                <select name="network_type">
+                    {% for key, cfg in network_types.items() %}
+                    <option value="{{ key }}">{{ cfg.name }} &mdash; {{ cfg.description }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
-    </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Subnet (CIDR)</label>
+                <input type="text" name="subnet" required placeholder="10.100.0.0/24">
+            </div>
+            <div class="form-group">
+                <label>Listen Port</label>
+                <input type="number" name="port" required value="51820" min="1024" max="65535">
+            </div>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="rate_limit_enabled" value="on" onchange="document.getElementById('rl-fields').style.display=this.checked?'grid':'none'"> Enable Rate Limiting</label>
+        </div>
+        <div class="form-row" id="rl-fields" style="display:none;">
+            <div class="form-group">
+                <label>Download Limit (Mbps)</label>
+                <input type="number" name="rate_limit_download_mbps" step="0.1" placeholder="100">
+            </div>
+            <div class="form-group">
+                <label>Upload Limit (Mbps)</label>
+                <input type="number" name="rate_limit_upload_mbps" step="0.1" placeholder="50">
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Create Network</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('create-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
 </div>
 {% endblock %}

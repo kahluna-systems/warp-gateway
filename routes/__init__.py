@@ -1,2 +1,1 @@
-# WARP Gateway — Routes
-# Flask route handlers for the management plane.
+# WARP Gateway — Route Blueprints
