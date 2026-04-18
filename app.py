@@ -1132,6 +1132,63 @@ def bulk_endpoints():
     return render_template('add_bulk_endpoints.html', form=form)
 
 
+# ============== Health & Nexus Platform Endpoints ==============
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for platform-core service registry."""
+    return jsonify({"status": "ok", "service": "warp-gateway"})
+
+
+@app.route('/nexus/status')
+@login_required
+def nexus_status():
+    """Get Nexus platform registration status."""
+    from nexus_client import nexus
+    return jsonify(nexus.get_status())
+
+
+@app.route('/nexus/register', methods=['POST'])
+@login_required
+@csrf.exempt
+def nexus_register():
+    """Register this gateway with platform-core using a provisioning token."""
+    from nexus_client import nexus
+
+    data = request.get_json() or {}
+    token = data.get('token')
+    platform_url = data.get('platform_url')
+
+    if not token or not platform_url:
+        return jsonify({"error": "token and platform_url are required"}), 400
+
+    # Detect gateway info
+    server_config = ServerConfig.query.first()
+    gateway_name = server_config.hostname if server_config else "warp-gateway"
+    gateway_url = f"http://{server_config.public_ip}:5000" if server_config else "http://0.0.0.0:5000"
+
+    result = nexus.claim_provisioning_token(
+        token=token,
+        gateway_name=gateway_name,
+        gateway_url=gateway_url,
+        platform_url=platform_url,
+    )
+
+    if result.get("status") == "registered":
+        nexus.start_heartbeat_loop(interval_seconds=60)
+
+    return jsonify(result)
+
+
+@app.route('/nexus/deregister', methods=['POST'])
+@login_required
+@csrf.exempt
+def nexus_deregister():
+    """Deregister this gateway from platform-core."""
+    from nexus_client import nexus
+    return jsonify(nexus.deregister())
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
@@ -1140,4 +1197,13 @@ if __name__ == '__main__':
         server_config = ServerConfig.query.first()
         if not server_config:
             print("Warning: Server not initialized. Run 'python server_init.py' first.")
+
+        # Start Nexus heartbeat if registered
+        from nexus_client import nexus
+        if nexus.is_registered:
+            nexus.start_heartbeat_loop(interval_seconds=60)
+            print(f"[Nexus] Registered with {nexus.platform_url} as {nexus.service_id}")
+        else:
+            print("[Nexus] Not registered with platform. Use /nexus/register or run deploy script.")
+
     app.run(debug=True, host='0.0.0.0', port=5000)
