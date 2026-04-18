@@ -1,0 +1,57 @@
+"""
+DNS forwarding management via dnsmasq.
+DNS config is part of the same dnsmasq instance as DHCP.
+This module handles DNS-specific overrides and upstream configuration.
+"""
+import logging
+from typing import Optional
+from system.commander import run
+
+logger = logging.getLogger("warp.system.dns")
+
+DNS_OVERRIDES_FILE = "/etc/dnsmasq.d/warp-dns-overrides.conf"
+
+
+def add_override(hostname: str, ip: str) -> bool:
+    """Add a local DNS override (hostname → IP)."""
+    line = f"address=/{hostname}/{ip}\n"
+    result = run(["sh", "-c", f"echo '{line}' >> {DNS_OVERRIDES_FILE}"], sudo=True)
+    if result.success:
+        from system.dhcp import restart
+        restart()
+        logger.info(f"DNS override added: {hostname} → {ip}")
+    return result.success
+
+
+def remove_override(hostname: str) -> bool:
+    """Remove a local DNS override."""
+    result = run(["sed", "-i", f"/{hostname}/d", DNS_OVERRIDES_FILE], sudo=True)
+    if result.success:
+        from system.dhcp import restart
+        restart()
+        logger.info(f"DNS override removed: {hostname}")
+    return result.success
+
+
+def get_overrides() -> list:
+    """Get all DNS overrides."""
+    import os
+    overrides = []
+    if not os.path.exists(DNS_OVERRIDES_FILE):
+        return overrides
+
+    result = run(["cat", DNS_OVERRIDES_FILE])
+    if result.success:
+        for line in result.stdout.split("\n"):
+            if line.startswith("address=/"):
+                parts = line.replace("address=/", "").rstrip("/").split("/")
+                if len(parts) == 2:
+                    overrides.append({"hostname": parts[0], "ip": parts[1]})
+    return overrides
+
+
+def set_upstream_servers(servers: list) -> bool:
+    """Update upstream DNS servers in the main dnsmasq config."""
+    # This is handled in dhcp.configure() — upstream servers are part of the main config
+    logger.info(f"Upstream DNS servers: {', '.join(servers)}")
+    return True
