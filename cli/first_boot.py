@@ -275,22 +275,23 @@ class FirstBootWizard:
                         and i.name != 'lo']
 
         if physical:
+            # Run DHCP checks first (before printing the table)
+            dhcp_results = {}
+            for iface in physical:
+                if iface.link_up:
+                    dhcp_results[iface.name] = self._check_dhcp(iface.name)
+                else:
+                    dhcp_results[iface.name] = ''
+
             print(f'  Found {len(physical)} interface(s):')
             print()
             print(f'  {"#":<4}{"Name":<12}{"MAC":<20}{"Link":<8}{"Driver":<15}{"DHCP":<10}')
             print(f'  {"-"*4}{"-"*12}{"-"*20}{"-"*8}{"-"*15}{"-"*10}')
 
-            dhcp_results = {}
             for idx, iface in enumerate(physical, 1):
                 link = 'UP' if iface.link_up else 'DOWN'
                 driver = iface.driver or 'unknown'
-
-                # Check for DHCP offers on UP interfaces
-                dhcp_status = ''
-                if iface.link_up:
-                    dhcp_status = self._check_dhcp(iface.name)
-                    dhcp_results[iface.name] = dhcp_status
-
+                dhcp_status = dhcp_results.get(iface.name, '')
                 print(f'  {idx:<4}{iface.name:<12}{iface.mac:<20}{link:<8}{driver:<15}{dhcp_status:<10}')
 
             print()
@@ -308,26 +309,35 @@ class FirstBootWizard:
     def _check_dhcp(self, interface_name) -> str:
         """Quick check for DHCP server presence on an interface."""
         from system.commander import run
-        # Use nmap or dhclient to probe -- fall back to checking if we got an IP via DHCP
-        # Quick method: check if dhclient lease file exists or if the interface has an IP
+        import subprocess
+
+        # Method 1: Check if the interface already has a dynamic IP
         result = run(['ip', '-4', 'addr', 'show', interface_name])
         if result.success and 'inet ' in result.stdout and 'dynamic' in result.stdout:
             return 'Detected'
 
-        # Try a fast dhcp discover (2 second timeout)
-        result = run(
-            ['timeout', '3', 'dhclient', '-1', '-nw', '-pf', f'/tmp/dhcp_test_{interface_name}.pid',
-             '-lf', f'/tmp/dhcp_test_{interface_name}.lease', interface_name],
-            sudo=True, timeout=5,
-        )
-        # Clean up
-        run(['dhclient', '-r', '-pf', f'/tmp/dhcp_test_{interface_name}.pid', interface_name],
-            sudo=True, timeout=5)
-        run(['rm', '-f', f'/tmp/dhcp_test_{interface_name}.pid', f'/tmp/dhcp_test_{interface_name}.lease'],
-            timeout=5)
+        # Method 2: Check for existing DHCP lease files
+        import os
+        lease_paths = [
+            f'/var/lib/dhcp/dhclient.{interface_name}.leases',
+            f'/var/lib/dhclient/dhclient-{interface_name}.leases',
+            '/var/lib/dhcp/dhclient.leases',
+        ]
+        for path in lease_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path) as f:
+                        content = f.read()
+                    if interface_name in content and 'lease {' in content:
+                        return 'Detected'
+                except Exception:
+                    pass
 
-        if result.success:
-            return 'Detected'
+        # Method 3: Check if there's a default route through this interface
+        result = run(['ip', 'route', 'show', 'default'])
+        if result.success and interface_name in result.stdout:
+            return 'Likely'
+
         return ''
 
     def _prompt_wan_assignment(self, interfaces) -> str:
