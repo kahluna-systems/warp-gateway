@@ -97,6 +97,16 @@ def startup_sync(app):
     with app.app_context():
         logger.info('=== WARP Gateway Startup Sequence ===')
 
+        # 0. Initialize GatewayConfig singleton
+        try:
+            from models_new import GatewayConfig
+            gw_config = GatewayConfig.get_instance()
+            mgmt_mode = gw_config.management_mode or 'standalone'
+            logger.info(f'  Management mode: {mgmt_mode}')
+        except Exception as e:
+            logger.error(f'  GatewayConfig init failed: {e}')
+            mgmt_mode = 'standalone'
+
         # 1. Dependency check
         logger.info('[1/9] Running dependency check...')
         try:
@@ -169,19 +179,71 @@ def startup_sync(app):
         except Exception as e:
             logger.error(f'  Rate limit setup failed: {e}')
 
-        # 9. Start Nexus heartbeat
-        logger.info('[9/9] Starting Nexus heartbeat...')
+        # 9. Nexus heartbeat — management mode aware
+        logger.info('[9/9] Nexus heartbeat check...')
         try:
-            from nexus_client import nexus
-            if nexus.is_registered:
-                nexus.start_heartbeat_loop()
-                logger.info('  Nexus heartbeat started')
-            else:
-                logger.info('  Gateway not registered with Nexus — skipping heartbeat')
+            if mgmt_mode == 'standalone':
+                logger.info('  Standalone mode — skipping Nexus heartbeat')
+            elif mgmt_mode in ('managed', 'pre_provisioned'):
+                from nexus_client import nexus
+                if mgmt_mode == 'pre_provisioned' and not nexus.is_registered:
+                    # Auto-register with exponential backoff
+                    logger.info('  Pre-provisioned mode — attempting auto-registration...')
+                    _attempt_pre_provision_registration(gw_config, nexus)
+                elif nexus.is_registered:
+                    nexus.start_heartbeat_loop()
+                    logger.info('  Nexus heartbeat started (managed mode)')
+                else:
+                    logger.warning('  Managed mode but not registered — run "nexus register" from CLI')
         except Exception as e:
             logger.error(f'  Nexus heartbeat failed: {e}')
 
         logger.info('=== Startup sequence complete ===')
+
+
+def _attempt_pre_provision_registration(gw_config, nexus):
+    """
+    Attempt auto-registration for pre-provisioned gateways.
+    Uses exponential backoff: 30s, 60s, 120s, max 300s.
+    Runs in a background thread so it doesn't block startup.
+    """
+    import threading
+    import time
+
+    token = gw_config.pre_provision_token
+    if not token:
+        logger.warning('  Pre-provisioned mode but no embedded token found')
+        return
+
+    def _register_loop():
+        delay = 30
+        max_delay = 300
+        while True:
+            try:
+                result = nexus.claim_provisioning_token(
+                    token=token,
+                    gateway_name=gw_config.hostname or 'warp-gw',
+                    gateway_url='http://0.0.0.0:5000',
+                    platform_url=gw_config.pre_provision_token,  # URL stored alongside token
+                )
+                if result.get('status') == 'registered':
+                    logger.info(f'  Pre-provision registration successful: {result.get("service_id")}')
+                    from database import db
+                    gw_config.management_mode = 'managed'
+                    db.session.commit()
+                    nexus.start_heartbeat_loop()
+                    return
+                else:
+                    logger.warning(f'  Pre-provision registration failed: {result.get("detail")}')
+            except Exception as e:
+                logger.warning(f'  Pre-provision registration error: {e}')
+
+            logger.info(f'  Retrying in {delay}s...')
+            time.sleep(delay)
+            delay = min(delay * 2, max_delay)
+
+    thread = threading.Thread(target=_register_loop, daemon=True, name='pre-provision')
+    thread.start()
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

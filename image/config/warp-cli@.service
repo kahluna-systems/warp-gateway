@@ -1,0 +1,18 @@
+[Unit]
+Description=WARP Gateway CLI on %I
+After=warp-gateway.service
+Requires=warp-gateway.service
+
+[Service]
+Type=simple
+ExecStart=/opt/warp-gateway/venv/bin/python /opt/warp-gateway/cli_entry.py
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/%I
+TTYReset=yes
+TTYVHangup=yes
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

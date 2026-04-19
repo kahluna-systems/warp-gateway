@@ -139,3 +139,20 @@ Thumbs.db
 # Testing directories (keep these excluded)
 testing/
 dev-tools/
+
+# Image build artifacts
+image/output/
+*.img
+*.ova
+*.iso
+*.squashfs
+*.vmdk
+
+# Startup config (generated at runtime)
+startup-config
+
+# Nexus registration (contains API keys)
+nexus_config.json
+
+# Kiro specs (workspace-specific)
+.kiro/

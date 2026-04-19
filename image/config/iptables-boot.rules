@@ -1,0 +1,25 @@
+# KahLuna WARP Gateway -- Boot-time Firewall Rules
+# Applied before the gateway startup sequence runs.
+# The gateway will apply its full policy on startup.
+
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# Allow loopback
+-A INPUT -i lo -j ACCEPT
+
+# Allow established/related
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow SSH (always -- prevents lockout)
+-A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow web UI
+-A INPUT -p tcp --dport 5000 -j ACCEPT
+
+# Allow ICMP
+-A INPUT -p icmp -j ACCEPT
+
+COMMIT

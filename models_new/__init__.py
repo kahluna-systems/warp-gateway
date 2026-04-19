@@ -453,3 +453,55 @@ class AuditLog(db.Model):
 
     def __repr__(self):
         return f'<AuditLog {self.action}>'
+
+
+# ── Gateway Config (Singleton) ──────────────────────────────────────────────
+
+class GatewayConfig(db.Model):
+    """
+    Singleton gateway-wide configuration.
+    Always ID=1. Stores hostname, management mode, enable password, etc.
+    """
+    __tablename__ = 'gateway_config'
+
+    id = db.Column(db.Integer, primary_key=True)
+    hostname = db.Column(db.String(64), default='warp-gw')
+    management_mode = db.Column(db.String(20), default='standalone')  # standalone, managed, pre_provisioned
+    software_version = db.Column(db.String(20), default='0.1.0')
+    enable_password_hash = db.Column(db.String(255))
+    idle_timeout = db.Column(db.Integer, default=600)  # CLI idle timeout in seconds
+    pre_provision_token = db.Column(db.String(255))  # Embedded provisioning token
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def set_enable_password(self, password):
+        self.enable_password_hash = generate_password_hash(password)
+
+    def check_enable_password(self, password):
+        if not self.enable_password_hash:
+            return False
+        return check_password_hash(self.enable_password_hash, password)
+
+    @staticmethod
+    def get_instance():
+        """Get or create the singleton config instance."""
+        config = GatewayConfig.query.get(1)
+        if not config:
+            config = GatewayConfig(id=1)
+            db.session.add(config)
+            db.session.commit()
+        return config
+
+    def to_dict(self):
+        return {
+            'hostname': self.hostname,
+            'management_mode': self.management_mode,
+            'software_version': self.software_version,
+            'idle_timeout': self.idle_timeout,
+            'has_enable_password': self.enable_password_hash is not None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f'<GatewayConfig {self.hostname} ({self.management_mode})>'

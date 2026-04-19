@@ -1,0 +1,17 @@
+[Unit]
+Description=KahLuna WARP Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/warp-gateway
+ExecStart=/opt/warp-gateway/venv/bin/python gateway.py
+Restart=on-failure
+RestartSec=5
+Environment=DATABASE_URL=sqlite:////var/lib/warp-gateway/gateway.db
+Environment=SECRET_KEY_FILE=/etc/warp-gateway/secret.key
+
+[Install]
+WantedBy=multi-user.target

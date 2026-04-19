@@ -4,7 +4,7 @@ Main dashboard — interface status, connected clients, recent events, system he
 from flask import Blueprint, render_template
 from flask_login import login_required
 from services import interface_service, client_service, health_service
-from models_new import VPNNetwork, AuditLog
+from models_new import VPNNetwork, AuditLog, GatewayConfig
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -32,6 +32,9 @@ def index():
     # System health
     system_health = health_service.get_system_health()
 
+    # Gateway config (management mode)
+    gateway_config = GatewayConfig.get_instance()
+
     return render_template('new/dashboard.html',
                            wan=wan,
                            lan=lan,
@@ -39,4 +42,5 @@ def index():
                            client_counts=client_counts,
                            clients=clients,
                            events=events,
-                           system_health=system_health)
+                           system_health=system_health,
+                           gateway_config=gateway_config)

@@ -70,6 +70,15 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Uptime: <strong>{{ system_health.uptime_human|default('N/A') }}</strong>
         </span>
+        <span style="margin-left:auto;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Mode: <strong>{{ gateway_config.management_mode|default('standalone') }}</strong>
+            {% if gateway_config.management_mode == 'managed' %}
+                &mdash; <span class="text-green">Nexus Connected</span>
+            {% elif gateway_config.management_mode == 'pre_provisioned' %}
+                &mdash; <span class="text-yellow">Pre-provisioned</span>
+            {% endif %}
+        </span>
     </div>
 </div>
 

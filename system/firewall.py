@@ -16,24 +16,48 @@ def set_default_policy(wan_interface: str, lan_interface: str) -> bool:
     - Allow established/related inbound
     - Drop unsolicited inbound on WAN
     - Allow loopback
+    - ALWAYS allow SSH (safety net — never lock out the admin)
     """
     commands = [
-        # Flush existing rules
+        # SAFETY FIRST: Ensure SSH is allowed BEFORE changing policies
+        # This prevents lockout if something goes wrong
+        ["iptables", "-I", "INPUT", "1", "-p", "tcp", "--dport", "22", "-j", "ACCEPT"],
+
+        # Flush existing rules (SSH rule we just added stays because -I inserts at top)
+        # Actually, flush will remove it too. So we set ACCEPT first, then flush, then rebuild.
+    ]
+
+    # Step 1: Set permissive policy first (safety)
+    safety_commands = [
+        ["iptables", "-P", "INPUT", "ACCEPT"],
+        ["iptables", "-P", "FORWARD", "ACCEPT"],
+        ["iptables", "-P", "OUTPUT", "ACCEPT"],
+    ]
+
+    for cmd in safety_commands:
+        run(cmd, sudo=True)
+
+    # Step 2: Flush
+    flush_commands = [
         ["iptables", "-F"],
         ["iptables", "-t", "nat", "-F"],
         ["iptables", "-X"],
+    ]
 
-        # Default policies
-        ["iptables", "-P", "INPUT", "DROP"],
-        ["iptables", "-P", "FORWARD", "DROP"],
-        ["iptables", "-P", "OUTPUT", "ACCEPT"],
+    for cmd in flush_commands:
+        run(cmd, sudo=True)
 
+    # Step 3: Build rules with SSH always allowed
+    rule_commands = [
         # Allow loopback
         ["iptables", "-A", "INPUT", "-i", "lo", "-j", "ACCEPT"],
 
         # Allow established/related
         ["iptables", "-A", "INPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"],
         ["iptables", "-A", "FORWARD", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"],
+
+        # ALWAYS allow SSH (critical — prevents lockout)
+        ["iptables", "-A", "INPUT", "-p", "tcp", "--dport", "22", "-j", "ACCEPT"],
 
         # Allow all from LAN
         ["iptables", "-A", "INPUT", "-i", lan_interface, "-j", "ACCEPT"],
@@ -49,9 +73,6 @@ def set_default_policy(wan_interface: str, lan_interface: str) -> bool:
         # Allow web UI (port 5000)
         ["iptables", "-A", "INPUT", "-p", "tcp", "--dport", "5000", "-j", "ACCEPT"],
 
-        # Allow SSH
-        ["iptables", "-A", "INPUT", "-p", "tcp", "--dport", "22", "-j", "ACCEPT"],
-
         # Allow WireGuard (51820-51829)
         ["iptables", "-A", "INPUT", "-p", "udp", "--dport", "51820:51829", "-j", "ACCEPT"],
 
@@ -60,11 +81,16 @@ def set_default_policy(wan_interface: str, lan_interface: str) -> bool:
     ]
 
     success = True
-    for cmd in commands:
+    for cmd in rule_commands:
         result = run(cmd, sudo=True)
         if not result.success:
             logger.error(f"Firewall rule failed: {' '.join(cmd)} — {result.stderr}")
             success = False
+
+    # Step 4: NOW set restrictive policies (only after all ACCEPT rules are in place)
+    run(["iptables", "-P", "INPUT", "DROP"], sudo=True)
+    run(["iptables", "-P", "FORWARD", "DROP"], sudo=True)
+    run(["iptables", "-P", "OUTPUT", "ACCEPT"], sudo=True)
 
     if success:
         logger.info(f"Default firewall policy applied (WAN={wan_interface}, LAN={lan_interface})")

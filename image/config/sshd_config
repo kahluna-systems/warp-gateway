@@ -1,0 +1,37 @@
+# KahLuna WARP Gateway -- Hardened SSH Configuration
+
+Port 22
+Protocol 2
+
+# Authentication
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication yes
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+UsePAM yes
+
+# Limits
+MaxAuthTries 3
+MaxSessions 5
+LoginGraceTime 60
+
+# Security
+X11Forwarding no
+AllowTcpForwarding no
+AllowAgentForwarding no
+PermitTunnel no
+
+# Banner
+Banner /etc/ssh/banner.txt
+
+# Logging
+SyslogFacility AUTH
+LogLevel VERBOSE
+
+# Idle timeout (10 minutes)
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+# Restrict to warp and admin users
+AllowGroups sudo warp
