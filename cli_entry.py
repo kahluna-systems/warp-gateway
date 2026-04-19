@@ -25,27 +25,54 @@ def main():
         source_ip = os.environ.get('SSH_CLIENT', '').split()[0] if 'SSH_CLIENT' in os.environ else 'console'
         conn_type = 'ssh' if 'SSH_CLIENT' in os.environ else 'console'
 
-        # For console (tty) access, prompt for credentials
-        if conn_type == 'console':
-            user = _console_login(session_mgr)
-            if not user:
-                sys.exit(1)
-        else:
-            # SSH: map OS user to DB user
-            from models_new import User
-            os_user = os.environ.get('USER', '')
-            user = User.query.filter_by(username=os_user).first()
-            if not user:
-                print('% User not found in gateway database')
-                sys.exit(1)
-
-        # Check for first boot (no startup-config)
+        # Check for first boot (no startup-config or empty database)
+        from models_new import User, GatewayConfig
         serializer = ConfigSerializer()
         startup = serializer.load_startup_config()
-        if startup is None:
+        user_count = User.query.count()
+
+        if startup is None or user_count == 0:
+            # First boot -- run the wizard which creates the admin user
+            print()
             from cli.first_boot import FirstBootWizard
+
+            # Ensure GatewayConfig exists
+            GatewayConfig.get_instance()
+
             wizard = FirstBootWizard(app)
-            wizard.run()
+            completed = wizard.run()
+
+            if completed:
+                # Wizard created an admin user -- look them up
+                user = User.query.filter_by(role='admin').first()
+                if not user:
+                    print('% No admin user found after setup')
+                    sys.exit(1)
+            else:
+                # Wizard cancelled -- try console login or create a default admin
+                user = User.query.first()
+                if not user:
+                    # Create a minimal admin so the CLI is accessible
+                    from database import db
+                    user = User(username='admin', email='admin@warp-gw.local', role='admin')
+                    user.set_password('admin')
+                    db.session.add(user)
+                    db.session.commit()
+                    print('  Default admin created (username: admin, password: admin)')
+                    print('  Change this immediately with: configure terminal -> hostname')
+        else:
+            # Normal boot -- authenticate
+            if conn_type == 'console':
+                user = _console_login(session_mgr)
+                if not user:
+                    sys.exit(1)
+            else:
+                # SSH: map OS user to DB user
+                os_user = os.environ.get('USER', '')
+                user = User.query.filter_by(username=os_user).first()
+                if not user:
+                    print(f'% User "{os_user}" not found in gateway database')
+                    sys.exit(1)
 
         # Create session and start shell
         session_id = session_mgr.create_session(user, source_ip, conn_type)

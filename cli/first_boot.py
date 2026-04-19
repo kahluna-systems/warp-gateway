@@ -434,14 +434,24 @@ class FirstBootWizard:
         user = User.query.filter_by(username=self.admin_user).first()
         if user:
             user.set_password(self.admin_pass)
+            user.role = 'admin'
         else:
-            user = User(
-                username=self.admin_user,
-                email=f'{self.admin_user}@{self.hostname}.local',
-                role='admin',
-            )
-            user.set_password(self.admin_pass)
-            db.session.add(user)
+            # Check if email already exists
+            email = f'{self.admin_user}@{self.hostname}.local'
+            existing_email = User.query.filter_by(email=email).first()
+            if existing_email:
+                # Update the existing user instead
+                existing_email.username = self.admin_user
+                existing_email.set_password(self.admin_pass)
+                existing_email.role = 'admin'
+            else:
+                user = User(
+                    username=self.admin_user,
+                    email=email,
+                    role='admin',
+                )
+                user.set_password(self.admin_pass)
+                db.session.add(user)
 
         db.session.commit()
 
