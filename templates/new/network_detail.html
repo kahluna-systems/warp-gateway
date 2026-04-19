@@ -1,0 +1,119 @@
+{% extends "new/base.html" %}
+{% block title %}{{ network.name }} - WARP Gateway{% endblock %}
+{% block page_title %}{{ network.name }}{% endblock %}
+
+{% block topbar_actions %}
+<div class="flex gap-2">
+    {% if network.status == 'suspended' %}
+    <form method="POST" action="{{ url_for('networks.resume', network_id=network.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary btn-sm">Resume</button>
+    </form>
+    {% elif network.status == 'active' %}
+    <form method="POST" action="{{ url_for('networks.suspend', network_id=network.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-secondary btn-sm">Suspend</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('networks.index') }}" class="btn btn-secondary btn-sm">Back to Networks</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Network Info -->
+<div class="card-grid">
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <h3>Network Info</h3>
+        </div>
+        <div class="text-sm" style="line-height:1.8;">
+            <div><strong>Type:</strong> {{ network_types.get(network.network_type, {}).get('name', network.network_type) }}</div>
+            <div><strong>Subnet:</strong> <code>{{ network.subnet }}</code></div>
+            <div><strong>Port:</strong> {{ network.port }}</div>
+            <div><strong>Interface:</strong> <code>{{ network.get_interface_name() }}</code></div>
+            <div><strong>Public Key:</strong> <code class="text-sm">{{ network.public_key[:24] }}...</code></div>
+        </div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <h3>WireGuard Status</h3>
+        </div>
+        <div class="text-sm" style="line-height:1.8;">
+            <div><strong>Status:</strong>
+                {% if network.status == 'active' %}<span class="badge badge-green">Active</span>
+                {% elif network.status == 'suspended' %}<span class="badge badge-amber">Suspended</span>
+                {% else %}<span class="badge badge-gray">{{ network.status }}</span>{% endif %}
+            </div>
+            <div><strong>Listening Port:</strong> {{ wg_status.listening_port if wg_status else '-' }}</div>
+            <div><strong>Connected Peers:</strong> {{ wg_status.connected_peers if wg_status else 0 }} / {{ wg_status.peer_count if wg_status else 0 }}</div>
+        </div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <h3>Rate Limiting</h3>
+        </div>
+        {% if network.rate_limit_enabled %}
+        <div class="text-sm" style="line-height:1.8;">
+            <div><strong>Download:</strong> {{ network.rate_limit_download_mbps }} Mbps</div>
+            <div><strong>Upload:</strong> {{ network.rate_limit_upload_mbps }} Mbps</div>
+            <div><strong>Burst:</strong> {{ network.rate_limit_burst_factor }}x</div>
+        </div>
+        {% else %}
+        <div class="text-muted text-sm">Rate limiting disabled</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Endpoints -->
+<div class="card">
+    <div class="card-header">
+        <h2>Endpoints ({{ endpoints|length }})</h2>
+        <a href="{{ url_for('endpoints.index', network_id=network.id) }}" class="btn btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Endpoint
+        </a>
+    </div>
+    {% if endpoints %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>IP Address</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ep in endpoints %}
+            <tr>
+                <td><strong>{{ ep.name }}</strong></td>
+                <td><code>{{ ep.ip_address }}</code></td>
+                <td><span class="badge badge-gray">{{ ep.endpoint_type }}</span></td>
+                <td>
+                    {% if ep.status == 'active' %}<span class="badge badge-green">Active</span>
+                    {% elif ep.status == 'suspended' %}<span class="badge badge-amber">Suspended</span>
+                    {% elif ep.status == 'failed' %}<span class="badge badge-red">Failed</span>
+                    {% else %}<span class="badge badge-gray">{{ ep.status }}</span>{% endif %}
+                </td>
+                <td class="flex gap-2">
+                    <a href="{{ url_for('endpoints.config', endpoint_id=ep.id) }}" class="btn btn-secondary btn-sm">Config</a>
+                    <form method="POST" action="{{ url_for('endpoints.remove', endpoint_id=ep.id) }}" style="display:inline;" onsubmit="return confirm('Remove endpoint {{ ep.name }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No endpoints in this network</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

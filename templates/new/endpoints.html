@@ -1,0 +1,141 @@
+{% extends "new/base.html" %}
+{% block title %}Endpoints - WARP Gateway{% endblock %}
+{% block page_title %}VPN Endpoints{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Endpoints</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-form').style.display='block'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Endpoint
+        </button>
+    </div>
+
+    <!-- Filter by network -->
+    <div class="mb-4">
+        <form method="GET" class="form-inline">
+            <div class="form-group" style="margin-bottom:0;">
+                <select name="network_id" onchange="this.form.submit()">
+                    <option value="">All Networks</option>
+                    {% for net in networks %}
+                    <option value="{{ net.id }}" {% if selected_network_id == net.id %}selected{% endif %}>{{ net.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+
+    {% if endpoints %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Network</th>
+                <th>IP Address</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ep in endpoints %}
+            <tr>
+                <td><strong>{{ ep.name }}</strong></td>
+                <td>{{ ep.vpn_network.name }}</td>
+                <td><code>{{ ep.ip_address }}</code></td>
+                <td><span class="badge badge-gray">{{ ep.endpoint_type }}</span></td>
+                <td>
+                    {% if ep.status == 'active' %}<span class="badge badge-green">Active</span>
+                    {% elif ep.status == 'suspended' %}<span class="badge badge-amber">Suspended</span>
+                    {% elif ep.status == 'failed' %}<span class="badge badge-red">Failed</span>
+                    {% else %}<span class="badge badge-gray">{{ ep.status }}</span>{% endif %}
+                </td>
+                <td class="flex gap-2">
+                    <a href="{{ url_for('endpoints.config', endpoint_id=ep.id) }}" class="btn btn-secondary btn-sm">Config</a>
+                    {% if ep.status == 'suspended' %}
+                    <form method="POST" action="{{ url_for('endpoints.resume', endpoint_id=ep.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-primary btn-sm">Resume</button>
+                    </form>
+                    {% elif ep.status != 'failed' %}
+                    <form method="POST" action="{{ url_for('endpoints.suspend', endpoint_id=ep.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-secondary btn-sm">Suspend</button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('endpoints.remove', endpoint_id=ep.id) }}" style="display:inline;" onsubmit="return confirm('Remove endpoint {{ ep.name }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <p>No endpoints configured</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Endpoint Form -->
+<div class="card" id="add-form" style="display:none;">
+    <div class="card-header">
+        <h2>Add Endpoint</h2>
+    </div>
+    <form method="POST" action="{{ url_for('endpoints.add') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Network</label>
+                <select name="network_id" required>
+                    {% for net in networks %}
+                    <option value="{{ net.id }}" {% if selected_network_id == net.id %}selected{% endif %}>{{ net.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Endpoint Name</label>
+                <input type="text" name="name" required placeholder="laptop-john">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Endpoint Type</label>
+                <select name="endpoint_type">
+                    <option value="mobile">Mobile Device</option>
+                    <option value="cpe">CPE / Router</option>
+                    <option value="gateway">Gateway</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Preshared Key</label>
+                <select name="use_psk">
+                    <option value="on">Enabled (recommended)</option>
+                    <option value="off">Disabled</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="rate_limit_enabled" value="on" onchange="document.getElementById('ep-rl').style.display=this.checked?'grid':'none'"> Override Network Rate Limit</label>
+        </div>
+        <div class="form-row" id="ep-rl" style="display:none;">
+            <div class="form-group">
+                <label>Download (Mbps)</label>
+                <input type="number" name="rate_limit_download_mbps" step="0.1">
+            </div>
+            <div class="form-group">
+                <label>Upload (Mbps)</label>
+                <input type="number" name="rate_limit_upload_mbps" step="0.1">
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Add Endpoint</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

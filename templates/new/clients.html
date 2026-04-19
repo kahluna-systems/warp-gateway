@@ -1,0 +1,75 @@
+{% extends "new/base.html" %}
+{% block title %}Clients - WARP Gateway{% endblock %}
+{% block page_title %}Connected Clients{% endblock %}
+
+{% block content %}
+<!-- Summary -->
+<div class="card-grid">
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <h3>Total Clients</h3>
+        </div>
+        <div class="status-card-value">{{ counts.total }}</div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+            <h3>LAN Clients</h3>
+        </div>
+        <div class="status-card-value">{{ counts.lan }}</div>
+    </div>
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <h3>VPN Clients</h3>
+        </div>
+        <div class="status-card-value">{{ counts.vpn_connected }} <span class="text-sm text-muted">/ {{ counts.vpn_total }}</span></div>
+        <div class="status-card-label">connected / total</div>
+    </div>
+</div>
+
+<!-- Client Table -->
+<div class="card">
+    <div class="card-header"><h2>All Connected Clients</h2></div>
+    {% if clients %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>IP Address</th>
+                <th>MAC</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr>
+                <td>{{ client.name or 'Unknown' }}</td>
+                <td><code>{{ client.ip }}</code></td>
+                <td><code class="text-sm">{{ client.mac or '-' }}</code></td>
+                <td><span class="badge {% if client.type == 'VPN' %}badge-blue{% else %}badge-gray{% endif %}">{{ client.type }}</span></td>
+                <td>{{ client.source }}</td>
+                <td>
+                    {% if client.status in ('Active', 'Connected', 'Reachable') %}
+                    <span class="badge badge-green">{{ client.status }}</span>
+                    {% elif client.status == 'Offline' %}
+                    <span class="badge badge-gray">{{ client.status }}</span>
+                    {% else %}
+                    <span class="badge badge-amber">{{ client.status }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <p>No clients connected</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

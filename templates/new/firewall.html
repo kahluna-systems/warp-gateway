@@ -1,0 +1,147 @@
+{% extends "new/base.html" %}
+{% block title %}Firewall - WARP Gateway{% endblock %}
+{% block page_title %}Firewall Rules{% endblock %}
+
+{% block content %}
+<!-- Custom Rules -->
+<div class="card">
+    <div class="card-header">
+        <h2>Custom Rules</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('rule-form').style.display='block'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Rule
+        </button>
+    </div>
+    {% if rules %}
+    <table>
+        <thead>
+            <tr>
+                <th>Chain</th>
+                <th>Source</th>
+                <th>Destination</th>
+                <th>Port</th>
+                <th>Protocol</th>
+                <th>Action</th>
+                <th>Description</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rule in rules %}
+            <tr>
+                <td><span class="badge badge-gray">{{ rule.chain }}</span></td>
+                <td>{{ rule.source or 'any' }}</td>
+                <td>{{ rule.destination or 'any' }}</td>
+                <td>{{ rule.port or 'any' }}</td>
+                <td>{{ rule.protocol or 'any' }}</td>
+                <td>
+                    {% if rule.action == 'ACCEPT' %}<span class="badge badge-green">ACCEPT</span>
+                    {% elif rule.action == 'DROP' %}<span class="badge badge-red">DROP</span>
+                    {% else %}<span class="badge badge-amber">{{ rule.action }}</span>{% endif %}
+                </td>
+                <td class="text-muted">{{ rule.description }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('firewall.remove_rule', rule_id=rule.id) }}" style="display:inline;" onsubmit="return confirm('Remove this rule?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state"><p>No custom firewall rules. Default policy is active.</p></div>
+    {% endif %}
+</div>
+
+<!-- Add Rule Form -->
+<div class="card" id="rule-form" style="display:none;">
+    <div class="card-header"><h2>Add Firewall Rule</h2></div>
+    <form method="POST" action="{{ url_for('firewall.add_rule') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Chain</label>
+                <select name="chain"><option>INPUT</option><option>FORWARD</option><option>OUTPUT</option></select>
+            </div>
+            <div class="form-group">
+                <label>Action</label>
+                <select name="action"><option>ACCEPT</option><option>DROP</option><option>REJECT</option></select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Source IP/CIDR</label><input type="text" name="source" placeholder="any"></div>
+            <div class="form-group"><label>Destination IP/CIDR</label><input type="text" name="destination" placeholder="any"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Protocol</label><select name="protocol"><option value="">any</option><option>tcp</option><option>udp</option><option>icmp</option></select></div>
+            <div class="form-group"><label>Port</label><input type="number" name="port" placeholder="any"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Priority</label><input type="number" name="priority" value="100"></div>
+            <div class="form-group"><label>Description</label><input type="text" name="description" placeholder="Allow HTTP from LAN"></div>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Add Rule</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('rule-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<!-- Port Forwarding -->
+<div class="card">
+    <div class="card-header">
+        <h2>Port Forwarding</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('pf-form').style.display='block'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Forward
+        </button>
+    </div>
+    {% if port_forwards %}
+    <table>
+        <thead><tr><th>WAN Port</th><th>LAN IP</th><th>LAN Port</th><th>Protocol</th><th>Description</th><th></th></tr></thead>
+        <tbody>
+            {% for pf in port_forwards %}
+            <tr>
+                <td>{{ pf.wan_port }}</td>
+                <td><code>{{ pf.lan_ip }}</code></td>
+                <td>{{ pf.lan_port }}</td>
+                <td>{{ pf.protocol }}</td>
+                <td class="text-muted">{{ pf.description }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('firewall.remove_forward', pf_id=pf.id) }}" style="display:inline;" onsubmit="return confirm('Remove this port forward?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state"><p>No port forwarding rules configured</p></div>
+    {% endif %}
+</div>
+
+<!-- Add Port Forward Form -->
+<div class="card" id="pf-form" style="display:none;">
+    <div class="card-header"><h2>Add Port Forward</h2></div>
+    <form method="POST" action="{{ url_for('firewall.add_forward') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group"><label>WAN Port</label><input type="number" name="wan_port" required placeholder="8080"></div>
+            <div class="form-group"><label>LAN IP</label><input type="text" name="lan_ip" required placeholder="192.168.1.100"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>LAN Port</label><input type="number" name="lan_port" required placeholder="80"></div>
+            <div class="form-group"><label>Protocol</label><select name="protocol"><option>tcp</option><option>udp</option><option>both</option></select></div>
+        </div>
+        <div class="form-group"><label>Description</label><input type="text" name="description" placeholder="Web server"></div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Add Forward</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('pf-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

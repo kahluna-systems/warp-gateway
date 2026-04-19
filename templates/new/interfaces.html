@@ -1,0 +1,129 @@
+{% extends "new/base.html" %}
+{% block title %}Interfaces - WARP Gateway{% endblock %}
+{% block page_title %}Interface Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Network Interfaces</h2>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Interface</th>
+                <th>MAC Address</th>
+                <th>IP Address</th>
+                <th>Link</th>
+                <th>Speed</th>
+                <th>Role</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for iface in interfaces %}
+            <tr>
+                <td><strong>{{ iface.name }}</strong></td>
+                <td><code class="text-sm">{{ iface.mac }}</code></td>
+                <td>{{ iface.configured_ip or iface.ip or '-' }}</td>
+                <td>
+                    {% if iface.link_up %}
+                    <span class="badge badge-green">Up</span>
+                    {% else %}
+                    <span class="badge badge-red">Down</span>
+                    {% endif %}
+                </td>
+                <td>{{ iface.speed or '-' }}</td>
+                <td>
+                    {% if iface.role == 'WAN' %}
+                    <span class="badge badge-blue">WAN</span>
+                    {% elif iface.role == 'LAN' %}
+                    <span class="badge badge-green">LAN</span>
+                    {% elif iface.role == 'OPT' %}
+                    <span class="badge badge-amber">OPT</span>
+                    {% else %}
+                    <span class="badge badge-gray">Unassigned</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="btn btn-secondary btn-sm" onclick="showAssignForm('{{ iface.name }}', '{{ iface.role }}', '{{ iface.configured_ip or '' }}', '{{ iface.configured_netmask or '' }}', '{{ iface.configured_gateway or '' }}')">Configure</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Assignment Form (hidden by default) -->
+<div class="card" id="assign-form" style="display:none;">
+    <div class="card-header">
+        <h2>Configure Interface: <span id="assign-iface-name"></span></h2>
+    </div>
+    <form method="POST" action="{{ url_for('interfaces.assign') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="interface_name" id="assign-iface-input">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Role</label>
+                <select name="role" id="assign-role" onchange="toggleStaticFields()">
+                    <option value="DISABLED">Disabled</option>
+                    <option value="WAN">WAN (Internet)</option>
+                    <option value="LAN">LAN (Local Network)</option>
+                    <option value="OPT">OPT (Optional)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Mode</label>
+                <select name="mode" id="assign-mode" onchange="toggleStaticFields()">
+                    <option value="static">Static IP</option>
+                    <option value="dhcp">DHCP Client</option>
+                </select>
+            </div>
+        </div>
+        <div id="static-fields">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>IP Address</label>
+                    <input type="text" name="ip_address" id="assign-ip" placeholder="192.168.1.1">
+                </div>
+                <div class="form-group">
+                    <label>Netmask</label>
+                    <input type="text" name="netmask" id="assign-netmask" placeholder="255.255.255.0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Gateway</label>
+                    <input type="text" name="gateway" id="assign-gateway" placeholder="192.168.1.254">
+                </div>
+                <div class="form-group">
+                    <label>DNS Servers</label>
+                    <input type="text" name="dns_servers" placeholder="1.1.1.1,8.8.8.8">
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('assign-form').style.display='none'">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<script>
+function showAssignForm(name, role, ip, netmask, gateway) {
+    document.getElementById('assign-form').style.display = 'block';
+    document.getElementById('assign-iface-name').textContent = name;
+    document.getElementById('assign-iface-input').value = name;
+    document.getElementById('assign-role').value = role !== 'UNASSIGNED' ? role : 'DISABLED';
+    document.getElementById('assign-ip').value = ip;
+    document.getElementById('assign-netmask').value = netmask;
+    document.getElementById('assign-gateway').value = gateway;
+    toggleStaticFields();
+    document.getElementById('assign-form').scrollIntoView({behavior: 'smooth'});
+}
+function toggleStaticFields() {
+    var mode = document.getElementById('assign-mode').value;
+    var role = document.getElementById('assign-role').value;
+    document.getElementById('static-fields').style.display = (mode === 'static' && role !== 'DISABLED') ? 'block' : 'none';
+}
+</script>
+{% endblock %}

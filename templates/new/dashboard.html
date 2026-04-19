@@ -1,0 +1,162 @@
+{% extends "new/base.html" %}
+{% block title %}Dashboard - WARP Gateway{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Interface Status Cards -->
+<div class="card-grid">
+    <!-- WAN Card -->
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <h3>WAN</h3>
+        </div>
+        {% if wan %}
+        <div class="status-card-value">{{ wan.configured_ip or wan.ip or 'No IP' }}</div>
+        <div class="status-card-label">{{ wan.name }} &mdash;
+            {% if wan.link_up %}<span class="text-green">Link Up</span>{% else %}<span class="text-red">Link Down</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="status-card-value text-muted">Not Configured</div>
+        <div class="status-card-label"><a href="{{ url_for('interfaces.index') }}">Assign WAN interface</a></div>
+        {% endif %}
+    </div>
+
+    <!-- LAN Card -->
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            <h3>LAN</h3>
+        </div>
+        {% if lan %}
+        <div class="status-card-value">{{ lan.configured_ip or lan.ip or 'No IP' }}</div>
+        <div class="status-card-label">{{ lan.name }} &mdash; {{ client_counts.lan }} clients connected</div>
+        {% else %}
+        <div class="status-card-value text-muted">Not Configured</div>
+        <div class="status-card-label"><a href="{{ url_for('interfaces.index') }}">Assign LAN interface</a></div>
+        {% endif %}
+    </div>
+
+    <!-- VPN Card -->
+    <div class="status-card">
+        <div class="status-card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <h3>VPN</h3>
+        </div>
+        <div class="status-card-value">{{ networks|length }} Network{{ 's' if networks|length != 1 }}</div>
+        <div class="status-card-label">
+            <span class="text-green">{{ client_counts.vpn_connected }} connected</span> /
+            <span class="text-muted">{{ client_counts.vpn_offline }} offline</span>
+        </div>
+    </div>
+</div>
+
+<!-- System Health Bar -->
+<div class="card" style="padding:12px 20px;">
+    <div class="flex items-center gap-4" style="font-size:13px;">
+        <span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
+            CPU: <strong>{{ system_health.cpu_percent|default(0) }}%</strong>
+        </span>
+        <span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="6" width="20" height="12" rx="2"/></svg>
+            Memory: <strong>{{ system_health.memory.percent|default(0) }}%</strong>
+        </span>
+        <span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            Disk: <strong>{{ system_health.disk.percent|default(0) }}%</strong>
+        </span>
+        <span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Uptime: <strong>{{ system_health.uptime_human|default('N/A') }}</strong>
+        </span>
+        <span style="margin-left:auto;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Mode: <strong>{{ gateway_config.management_mode|default('standalone') }}</strong>
+            {% if gateway_config.management_mode == 'managed' %}
+                &mdash; <span class="text-green">Nexus Connected</span>
+            {% elif gateway_config.management_mode == 'pre_provisioned' %}
+                &mdash; <span class="text-yellow">Pre-provisioned</span>
+            {% endif %}
+        </span>
+    </div>
+</div>
+
+<!-- Connected Clients -->
+<div class="card">
+    <div class="card-header">
+        <h2>Connected Clients ({{ client_counts.total }})</h2>
+        <a href="{{ url_for('clients.index') }}" class="btn btn-secondary btn-sm">View All</a>
+    </div>
+    {% if clients %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>IP Address</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr>
+                <td>{{ client.name or 'Unknown' }}</td>
+                <td><code>{{ client.ip }}</code></td>
+                <td><span class="badge {% if client.type == 'VPN' %}badge-blue{% else %}badge-gray{% endif %}">{{ client.type }}</span></td>
+                <td>{{ client.source }}</td>
+                <td>
+                    {% if client.status in ('Active', 'Connected') %}
+                    <span class="badge badge-green">{{ client.status }}</span>
+                    {% elif client.status == 'Offline' %}
+                    <span class="badge badge-gray">{{ client.status }}</span>
+                    {% else %}
+                    <span class="badge badge-amber">{{ client.status }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <p>No clients connected</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent Events -->
+<div class="card">
+    <div class="card-header">
+        <h2>Recent Events</h2>
+    </div>
+    {% if events %}
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Details</th>
+                <th>User</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in events %}
+            <tr>
+                <td class="text-muted text-sm">{{ event.created_at.strftime('%H:%M:%S') if event.created_at else '' }}</td>
+                <td><span class="badge badge-gray">{{ event.action }}</span></td>
+                <td>{{ event.details }}</td>
+                <td class="text-muted">{{ event.user.username if event.user else 'System' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p class="text-muted">No recent events</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
