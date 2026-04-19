@@ -10,7 +10,6 @@ WorkingDirectory=/opt/warp-gateway
 ExecStart=/opt/warp-gateway/venv/bin/python gateway.py
 Restart=on-failure
 RestartSec=5
-Environment=DATABASE_URL=sqlite:////var/lib/warp-gateway/gateway.db
 Environment=SECRET_KEY_FILE=/etc/warp-gateway/secret.key
 
 [Install]

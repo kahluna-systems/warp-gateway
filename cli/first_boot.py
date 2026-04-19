@@ -165,6 +165,7 @@ class FirstBootWizard:
         self.admin_pass = None
         self.hostname = 'warp-gw'
         self.mgmt_mode = 'standalone'
+        self._enable_password = 'enable'
 
     def run(self) -> bool:
         """
@@ -436,9 +437,31 @@ class FirstBootWizard:
                 if password != confirm:
                     print('  * Passwords do not match')
                     continue
-                return username, password
+                break
             except (EOFError, KeyboardInterrupt):
                 raise KeyboardInterrupt
+
+        _section('Enable Password')
+        print('  The enable password is used to enter privileged mode')
+        print('  in the CLI (similar to Cisco "enable secret").')
+        print()
+
+        while True:
+            try:
+                enable_pw = getpass.getpass('  Enable password: ')
+                if len(enable_pw) < 4:
+                    print('  * Enable password must be at least 4 characters')
+                    continue
+                confirm_en = getpass.getpass('  Confirm enable password: ')
+                if enable_pw != confirm_en:
+                    print('  * Passwords do not match')
+                    continue
+                self._enable_password = enable_pw
+                break
+            except (EOFError, KeyboardInterrupt):
+                raise KeyboardInterrupt
+
+        return username, password
 
     def _prompt_hostname(self) -> str:
         """Prompt for the gateway hostname."""
@@ -517,6 +540,7 @@ class FirstBootWizard:
         config = GatewayConfig.get_instance()
         config.hostname = self.hostname
         config.management_mode = self.mgmt_mode
+        config.set_enable_password(self._enable_password)
 
         # 2. Create/update admin user
         print('  Creating admin user...')

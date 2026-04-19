@@ -26,7 +26,15 @@ def create_app():
 
     # ── Configuration ────────────────────────────────────────────────────
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'warp-gateway-dev-key-change-me')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///warp_gateway.db')
+
+    # Database: use a consistent absolute path so CLI and web UI share the same DB
+    default_db = 'sqlite:////var/lib/warp-gateway/gateway.db'
+    if not os.path.isdir('/var/lib/warp-gateway'):
+        # Fall back to local path for development/testing
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        default_db = f'sqlite:///{os.path.join(app_dir, "warp_gateway.db")}'
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', default_db)
+
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['WTF_CSRF_TIME_LIMIT'] = 3600
 
