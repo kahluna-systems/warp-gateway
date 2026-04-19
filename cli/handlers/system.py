@@ -47,6 +47,10 @@ def set_hostname(shell, args):
     config.hostname = new_hostname
     db.session.commit()
 
+    # Also set the OS hostname
+    from system.commander import run
+    run(['hostnamectl', 'set-hostname', new_hostname], sudo=True)
+
     shell._hostname = new_hostname
     shell.formatter.print(f'Hostname set to "{new_hostname}"')
 

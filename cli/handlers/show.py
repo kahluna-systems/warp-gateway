@@ -327,12 +327,14 @@ def show_clients(shell, args):
 def show_system_health(shell, args):
     """show system health"""
     from services.health_service import get_system_health, get_dependency_status
+    from models_new import GatewayConfig
 
     health = get_system_health()
     deps = get_dependency_status()
+    gw_config = GatewayConfig.get_instance()
 
     data = {
-        'Hostname': health.get('hostname', 'unknown'),
+        'Hostname': gw_config.hostname,
         'Platform': health.get('platform', 'unknown'),
         'Uptime': health.get('uptime_human', 'unknown'),
         'CPU Usage': f'{health.get("cpu_percent", 0)}%',

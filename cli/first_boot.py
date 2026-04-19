@@ -542,6 +542,10 @@ class FirstBootWizard:
         config.management_mode = self.mgmt_mode
         config.set_enable_password(self._enable_password)
 
+        # Also set the OS hostname
+        from system.commander import run
+        run(['hostnamectl', 'set-hostname', self.hostname], sudo=True)
+
         # 2. Create/update admin user
         print('  Creating admin user...')
         user = User.query.filter_by(username=self.admin_user).first()
