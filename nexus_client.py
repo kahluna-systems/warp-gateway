@@ -5,9 +5,12 @@ Handles gateway registration, heartbeats, and config sync with platform-core.
 import json
 import os
 import time
+import logging
 import threading
 import requests
 from pathlib import Path
+
+logger = logging.getLogger('warp.nexus')
 
 NEXUS_CONFIG_FILE = "nexus_config.json"
 
@@ -118,12 +121,12 @@ class NexusClient:
                 if self.is_registered:
                     result = self.send_heartbeat()
                     if result["status"] != "ok":
-                        print(f"[Nexus] Heartbeat failed: {result.get('detail', 'unknown')}")
+                        logger.warning(f"Heartbeat failed: {result.get('detail', 'unknown')}")
                 time.sleep(interval_seconds)
 
         self._heartbeat_thread = threading.Thread(target=_loop, daemon=True)
         self._heartbeat_thread.start()
-        print(f"[Nexus] Heartbeat loop started (every {interval_seconds}s)")
+        logger.info(f"Heartbeat loop started (every {interval_seconds}s)")
 
     def stop_heartbeat_loop(self):
         """Stop the heartbeat background thread."""

@@ -71,6 +71,22 @@ def remove_static_route(destination: str) -> 'CommandResult':
     return run(["ip", "route", "del", destination], sudo=True)
 
 
+def add_default_gateway(gateway: str, interface: Optional[str] = None) -> 'CommandResult':
+    """Set the default gateway. Replaces any existing default route."""
+    # Remove existing default route first (best effort)
+    run(["ip", "route", "del", "default"], sudo=True)
+
+    cmd = ["ip", "route", "add", "default", "via", gateway]
+    if interface:
+        cmd.extend(["dev", interface])
+    result = run(cmd, sudo=True)
+    if result.success:
+        logger.info(f"Default gateway set to {gateway}" + (f" via {interface}" if interface else ""))
+    else:
+        logger.error(f"Failed to set default gateway: {result.stderr}")
+    return result
+
+
 def get_routing_table() -> list:
     """Get the current routing table."""
     result = run(["ip", "route", "show"])

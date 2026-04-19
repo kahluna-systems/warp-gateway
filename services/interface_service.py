@@ -82,6 +82,9 @@ def assign_role(interface_name, role, mode='static', ip=None, netmask=None, gate
             sys_iface.bring_up(interface_name)
             if mode == 'static' and ip and netmask:
                 sys_iface.set_ip(interface_name, ip, netmask)
+            # Apply default gateway if specified (typically on WAN)
+            if gateway:
+                sys_routing.add_default_gateway(gateway, interface_name)
 
         db.session.commit()
         AuditLog.log('interface_assign', f'{interface_name} assigned as {role}')
@@ -103,6 +106,9 @@ def apply_saved_configs():
             sys_iface.bring_up(cfg.name)
             if cfg.mode == 'static' and cfg.ip_address and cfg.netmask:
                 sys_iface.set_ip(cfg.name, cfg.ip_address, cfg.netmask)
+            # Apply default gateway if configured (typically WAN)
+            if cfg.gateway:
+                sys_routing.add_default_gateway(cfg.gateway, cfg.name)
             logger.info(f'Applied saved config for {cfg.name} ({cfg.role})')
         except Exception as e:
             logger.error(f'Failed to apply config for {cfg.name}: {e}')
