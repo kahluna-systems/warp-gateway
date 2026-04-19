@@ -25,7 +25,26 @@ def create_app():
     app = Flask(__name__, template_folder='templates')
 
     # ── Configuration ────────────────────────────────────────────────────
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'warp-gateway-dev-key-change-me')
+    # Secret key: read from file if available, fall back to env var, then default
+    secret_key = os.environ.get('SECRET_KEY', 'warp-gateway-dev-key-change-me')
+    secret_key_file = os.environ.get('SECRET_KEY_FILE', '/etc/warp-gateway/secret.key')
+    if os.path.isfile(secret_key_file):
+        try:
+            with open(secret_key_file) as f:
+                secret_key = f.read().strip()
+        except Exception:
+            pass
+    elif os.path.isdir('/etc/warp-gateway'):
+        # Generate a secret key on first boot
+        import secrets
+        secret_key = secrets.token_hex(32)
+        try:
+            with open(secret_key_file, 'w') as f:
+                f.write(secret_key)
+            os.chmod(secret_key_file, 0o600)
+        except Exception:
+            pass
+    app.config['SECRET_KEY'] = secret_key
 
     # Database: use a consistent absolute path so CLI and web UI share the same DB
     default_db = 'sqlite:////var/lib/warp-gateway/gateway.db'
@@ -232,7 +251,7 @@ def _attempt_pre_provision_registration(gw_config, nexus):
                     token=token,
                     gateway_name=gw_config.hostname or 'warp-gw',
                     gateway_url='http://0.0.0.0:5000',
-                    platform_url=gw_config.pre_provision_token,  # URL stored alongside token
+                    platform_url=gw_config.pre_provision_url or 'https://api.kahluna.com',
                 )
                 if result.get('status') == 'registered':
                     logger.info(f'  Pre-provision registration successful: {result.get("service_id")}')

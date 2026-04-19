@@ -393,7 +393,7 @@ class FirstBootWizard:
 
         _section('LAN Configuration')
 
-        ip = _prompt('LAN gateway IP', default='192.168.1.1', validator=_validate_ip)
+        ip = _prompt('LAN gateway IP', default='10.246.247.1', validator=_validate_ip)
         netmask = _prompt('LAN netmask', default='255.255.255.0', validator=_validate_netmask)
 
         # Calculate DHCP range from subnet
@@ -597,18 +597,24 @@ class FirstBootWizard:
                 netmask=self.lan_config.get('netmask'),
             )
 
-            # 5. Configure DHCP if enabled
-            if self.lan_config.get('dhcp_enabled'):
-                print('  Configuring DHCP server...')
-                from services.dhcp_service import setup_dhcp
-                setup_dhcp(
-                    interface=self.lan_iface,
-                    range_start=self.lan_config.get('dhcp_start'),
-                    range_end=self.lan_config.get('dhcp_end'),
-                    netmask=self.lan_config.get('netmask', '255.255.255.0'),
-                    gateway=self.lan_config.get('ip'),
-                    dns_servers=self.lan_config.get('dns', '1.1.1.1,8.8.8.8'),
-                )
+        # 4.5. Configure gateway's own DNS resolution
+        print('  Configuring DNS resolution...')
+        dns_servers = self.wan_config.get('dns', '1.1.1.1,8.8.8.8')
+        from system.dns import set_upstream_servers
+        set_upstream_servers([s.strip() for s in dns_servers.split(',')])
+
+        # 5. Configure DHCP if enabled
+        if self.lan_iface and self.lan_config.get('dhcp_enabled'):
+            print('  Configuring DHCP server...')
+            from services.dhcp_service import setup_dhcp
+            setup_dhcp(
+                interface=self.lan_iface,
+                range_start=self.lan_config.get('dhcp_start'),
+                range_end=self.lan_config.get('dhcp_end'),
+                netmask=self.lan_config.get('netmask', '255.255.255.0'),
+                gateway=self.lan_config.get('ip'),
+                dns_servers=self.lan_config.get('dns', '1.1.1.1,8.8.8.8'),
+            )
 
         # 6. Start heartbeat if managed
         if self.mgmt_mode == 'managed' and registration:
@@ -637,9 +643,68 @@ class FirstBootWizard:
         config.management_mode = 'standalone'
         db.session.commit()
 
+        # Enable setup mode: configure the first LAN-capable interface with a
+        # default IP so the web UI is reachable for browser-based setup.
+        # Uses an obscure subnet to avoid conflicts with customer networks.
+        SETUP_IP = '10.246.247.1'
+        SETUP_NETMASK = '255.255.255.0'
+        SETUP_DHCP_START = '10.246.247.10'
+        SETUP_DHCP_END = '10.246.247.199'
+
+        try:
+            from system.interfaces import detect_all
+            all_ifaces = detect_all()
+            # Find the first physical interface that isn't the default route (likely LAN)
+            from system.routing import detect_default_interface
+            wan_iface = detect_default_interface()
+
+            lan_candidate = None
+            for iface in all_ifaces:
+                if iface.is_physical and iface.name != wan_iface and iface.name != 'lo':
+                    lan_candidate = iface.name
+                    break
+
+            # Fall back to any non-WAN physical interface
+            if not lan_candidate:
+                for iface in all_ifaces:
+                    if iface.is_physical and iface.name != 'lo':
+                        lan_candidate = iface.name
+                        break
+
+            if lan_candidate:
+                from services.interface_service import assign_role
+                assign_role(lan_candidate, 'LAN', mode='static',
+                            ip=SETUP_IP, netmask=SETUP_NETMASK)
+
+                from services.dhcp_service import setup_dhcp
+                setup_dhcp(
+                    interface=lan_candidate,
+                    range_start=SETUP_DHCP_START,
+                    range_end=SETUP_DHCP_END,
+                    netmask=SETUP_NETMASK,
+                    gateway=SETUP_IP,
+                    dns_servers='1.1.1.1,8.8.8.8',
+                )
+
+                logger.info(f'Setup mode: LAN on {lan_candidate} at {SETUP_IP}')
+                print(f'  Setup mode enabled:')
+                print(f'    LAN interface: {lan_candidate}')
+                print(f'    Gateway IP:    {SETUP_IP}')
+                print(f'    DHCP range:    {SETUP_DHCP_START} - {SETUP_DHCP_END}')
+                print(f'    Web UI:        http://{SETUP_IP}:5000')
+                print()
+                print(f'  Connect a laptop to the LAN port and open')
+                print(f'  http://{SETUP_IP}:5000 to complete setup.')
+            else:
+                logger.warning('Setup mode: no suitable LAN interface found')
+                print('  No LAN interface detected for setup mode.')
+
+        except Exception as e:
+            logger.error(f'Setup mode failed: {e}')
+
         logger.info('First-boot wizard cancelled -- safe defaults applied')
+        print()
         print('  Safe defaults applied:')
-        print('    - All interfaces: disabled')
         print('    - Management: standalone')
-        print('    - Web UI: localhost only')
+        print('    - Web UI accessible on LAN')
         print()

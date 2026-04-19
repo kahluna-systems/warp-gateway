@@ -80,7 +80,11 @@ def assign_role(interface_name, role, mode='static', ip=None, netmask=None, gate
             sys_iface.bring_down(interface_name)
         else:
             sys_iface.bring_up(interface_name)
-            if mode == 'static' and ip and netmask:
+            if mode == 'dhcp':
+                # Run DHCP client to obtain an address
+                from system.commander import run as sys_run
+                sys_run(['dhclient', '-1', interface_name], sudo=True, timeout=30)
+            elif mode == 'static' and ip and netmask:
                 sys_iface.set_ip(interface_name, ip, netmask)
             # Apply default gateway if specified (typically on WAN)
             if gateway:
@@ -104,7 +108,10 @@ def apply_saved_configs():
     for cfg in configs:
         try:
             sys_iface.bring_up(cfg.name)
-            if cfg.mode == 'static' and cfg.ip_address and cfg.netmask:
+            if cfg.mode == 'dhcp':
+                from system.commander import run as sys_run
+                sys_run(['dhclient', '-1', cfg.name], sudo=True, timeout=30)
+            elif cfg.mode == 'static' and cfg.ip_address and cfg.netmask:
                 sys_iface.set_ip(cfg.name, cfg.ip_address, cfg.netmask)
             # Apply default gateway if configured (typically WAN)
             if cfg.gateway:

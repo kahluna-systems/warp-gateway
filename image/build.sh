@@ -82,6 +82,10 @@ cp "$SCRIPT_DIR/scripts/harden.sh" "$ROOTFS/tmp/"
 cp "$SCRIPT_DIR/scripts/finalize.sh" "$ROOTFS/tmp/"
 cp -r "$SCRIPT_DIR/config" "$ROOTFS/tmp/warp-config"
 
+# Copy Plymouth and GRUB themes
+cp -r "$SCRIPT_DIR/plymouth" "$ROOTFS/tmp/warp-plymouth" 2>/dev/null || true
+cp -r "$SCRIPT_DIR/grub" "$ROOTFS/tmp/warp-grub" 2>/dev/null || true
+
 # Copy the gateway application
 mkdir -p "$ROOTFS/opt/warp-gateway"
 rsync -a --exclude='venv' --exclude='__pycache__' --exclude='.git' \

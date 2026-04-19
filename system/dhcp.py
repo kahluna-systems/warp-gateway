@@ -115,7 +115,7 @@ def add_reservation(mac: str, ip: str, hostname: str = "") -> bool:
         line += f",{hostname}"
     line += "\n"
 
-    result = run(["sh", "-c", f"echo '{line}' >> {DNSMASQ_WARP_CONF}"], sudo=True)
+    result = run(["tee", "-a", DNSMASQ_WARP_CONF], sudo=True, input_data=line)
     if result.success:
         restart()
         logger.info(f"DHCP reservation added: {mac} → {ip}")

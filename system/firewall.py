@@ -18,15 +18,6 @@ def set_default_policy(wan_interface: str, lan_interface: str) -> bool:
     - Allow loopback
     - ALWAYS allow SSH (safety net — never lock out the admin)
     """
-    commands = [
-        # SAFETY FIRST: Ensure SSH is allowed BEFORE changing policies
-        # This prevents lockout if something goes wrong
-        ["iptables", "-I", "INPUT", "1", "-p", "tcp", "--dport", "22", "-j", "ACCEPT"],
-
-        # Flush existing rules (SSH rule we just added stays because -I inserts at top)
-        # Actually, flush will remove it too. So we set ACCEPT first, then flush, then rebuild.
-    ]
-
     # Step 1: Set permissive policy first (safety)
     safety_commands = [
         ["iptables", "-P", "INPUT", "ACCEPT"],
@@ -59,17 +50,6 @@ def set_default_policy(wan_interface: str, lan_interface: str) -> bool:
         # ALWAYS allow SSH (critical — prevents lockout)
         ["iptables", "-A", "INPUT", "-p", "tcp", "--dport", "22", "-j", "ACCEPT"],
 
-        # Allow all from LAN
-        ["iptables", "-A", "INPUT", "-i", lan_interface, "-j", "ACCEPT"],
-        ["iptables", "-A", "FORWARD", "-i", lan_interface, "-o", wan_interface, "-j", "ACCEPT"],
-
-        # Allow DHCP on LAN
-        ["iptables", "-A", "INPUT", "-i", lan_interface, "-p", "udp", "--dport", "67:68", "-j", "ACCEPT"],
-
-        # Allow DNS on LAN
-        ["iptables", "-A", "INPUT", "-i", lan_interface, "-p", "udp", "--dport", "53", "-j", "ACCEPT"],
-        ["iptables", "-A", "INPUT", "-i", lan_interface, "-p", "tcp", "--dport", "53", "-j", "ACCEPT"],
-
         # Allow web UI (port 5000)
         ["iptables", "-A", "INPUT", "-p", "tcp", "--dport", "5000", "-j", "ACCEPT"],
 
@@ -79,6 +59,19 @@ def set_default_policy(wan_interface: str, lan_interface: str) -> bool:
         # Allow ICMP (ping)
         ["iptables", "-A", "INPUT", "-p", "icmp", "-j", "ACCEPT"],
     ]
+
+    # LAN-specific rules (only if LAN is configured)
+    if lan_interface:
+        rule_commands.extend([
+            ["iptables", "-A", "INPUT", "-i", lan_interface, "-j", "ACCEPT"],
+            ["iptables", "-A", "INPUT", "-i", lan_interface, "-p", "udp", "--dport", "67:68", "-j", "ACCEPT"],
+            ["iptables", "-A", "INPUT", "-i", lan_interface, "-p", "udp", "--dport", "53", "-j", "ACCEPT"],
+            ["iptables", "-A", "INPUT", "-i", lan_interface, "-p", "tcp", "--dport", "53", "-j", "ACCEPT"],
+        ])
+        if wan_interface:
+            rule_commands.append(
+                ["iptables", "-A", "FORWARD", "-i", lan_interface, "-o", wan_interface, "-j", "ACCEPT"]
+            )
 
     success = True
     for cmd in rule_commands:
@@ -92,8 +85,9 @@ def set_default_policy(wan_interface: str, lan_interface: str) -> bool:
     run(["iptables", "-P", "FORWARD", "DROP"], sudo=True)
     run(["iptables", "-P", "OUTPUT", "ACCEPT"], sudo=True)
 
+    iface_info = f"WAN={wan_interface or 'none'}, LAN={lan_interface or 'none'}"
     if success:
-        logger.info(f"Default firewall policy applied (WAN={wan_interface}, LAN={lan_interface})")
+        logger.info(f"Default firewall policy applied ({iface_info})")
     return success
 
 

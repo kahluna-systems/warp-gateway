@@ -471,6 +471,7 @@ class GatewayConfig(db.Model):
     enable_password_hash = db.Column(db.String(255))
     idle_timeout = db.Column(db.Integer, default=600)  # CLI idle timeout in seconds
     pre_provision_token = db.Column(db.String(255))  # Embedded provisioning token
+    pre_provision_url = db.Column(db.String(255))    # Platform URL for pre-provisioned mode
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

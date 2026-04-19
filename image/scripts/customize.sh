@@ -31,6 +31,7 @@ apt-get install -y --no-install-recommends \
     traceroute \
     dnsutils \
     openssh-server \
+    isc-dhcp-client \
     sudo \
     systemd \
     systemd-sysv \
@@ -61,17 +62,62 @@ python3 -m venv /opt/warp-gateway/venv
 # ── Create system user ───────────────────────────────────────────────────────
 
 echo "-- Creating warp system user --"
-useradd -r -m -s /opt/warp-gateway/cli_entry.py -G sudo warp || true
+# Use a wrapper script as login shell (not the Python script directly)
+cat > /opt/warp-gateway/warp-shell.sh << 'SHELL_EOF'
+#!/bin/bash
+cd /opt/warp-gateway
+exec /opt/warp-gateway/venv/bin/python /opt/warp-gateway/cli_entry.py
+SHELL_EOF
+chmod +x /opt/warp-gateway/warp-shell.sh
+
+useradd -r -m -s /opt/warp-gateway/warp-shell.sh -G sudo warp || true
 echo "warp ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/warp
+
+# ── Create data directories ──────────────────────────────────────────────────
+
+echo "-- Creating data directories --"
+mkdir -p /var/lib/warp-gateway
+mkdir -p /etc/warp-gateway
+chown root:root /var/lib/warp-gateway
+chmod 755 /var/lib/warp-gateway
+
+# ── Disable systemd-resolved (conflicts with dnsmasq on port 53) ─────────────
+
+echo "-- Disabling systemd-resolved --"
+systemctl disable systemd-resolved 2>/dev/null || true
+systemctl mask systemd-resolved 2>/dev/null || true
+rm -f /etc/resolv.conf
+echo "nameserver 1.1.1.1" > /etc/resolv.conf
 
 # ── Install systemd units ────────────────────────────────────────────────────
 
 echo "-- Installing systemd units --"
 cp /tmp/warp-config/warp-gateway.service /etc/systemd/system/
+
+# Note: We use the getty override for tty1, NOT warp-cli@tty1.service
+# to avoid two services fighting over the same TTY
 cp /tmp/warp-config/warp-cli@.service /etc/systemd/system/
 
 systemctl enable warp-gateway.service
-systemctl enable warp-cli@tty1.service
+# Do NOT enable warp-cli@tty1 -- the getty override handles tty1
+
+# Enable CLI on serial console (ttyS0) for headless appliances
+systemctl enable warp-cli@ttyS0.service 2>/dev/null || true
+
+# Configure serial console getty as fallback
+mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d
+cat > /etc/systemd/system/serial-getty@ttyS0.service.d/override.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=-/opt/warp-gateway/warp-shell.sh
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/ttyS0
+TTYReset=yes
+TTYVHangup=yes
+Type=idle
+EOF
+systemctl enable serial-getty@ttyS0.service 2>/dev/null || true
 
 # ── Configure console auto-login to CLI shell ────────────────────────────────
 
@@ -107,6 +153,16 @@ cp /tmp/warp-config/banner.txt /etc/ssh/banner.txt
 
 echo "warp-gw" > /etc/hostname
 echo "127.0.0.1 warp-gw" >> /etc/hosts
+
+# ── Install boot splash (Plymouth) and GRUB theme ────────────────────────────
+
+echo "-- Installing boot splash --"
+if [ -d /tmp/warp-config/../plymouth ]; then
+    bash /tmp/warp-config/../plymouth/install.sh || echo "WARNING: Plymouth install failed (non-fatal)"
+fi
+if [ -d /tmp/warp-config/../grub ]; then
+    bash /tmp/warp-config/../grub/install.sh || echo "WARNING: GRUB theme install failed (non-fatal)"
+fi
 
 # ── Disable dnsmasq auto-start (gateway manages it) ─────────────────────────
 

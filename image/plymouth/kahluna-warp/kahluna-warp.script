@@ -1,0 +1,289 @@
+// ============================================================================
+// KahLuna WARP OS — Plymouth Boot Splash
+// Enterprise-grade boot sequence for network appliance
+// ============================================================================
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+// Background: deep navy (#0A0E1A)
+// Accent cyan: #00D1FF
+// Accent purple: #7B61FF
+// Text primary: #E0E6F0
+// Text secondary: #6B7A99
+// Check green: #00E676
+// Progress bar bg: #1A2035
+// Progress bar fill: #00D1FF
+
+// ── Screen Setup ────────────────────────────────────────────────────────────
+
+Window.SetBackgroundTopColor(0.04, 0.055, 0.102);     // #0A0E1A
+Window.SetBackgroundBottomColor(0.02, 0.035, 0.075);  // Slight gradient
+
+screen_width = Window.GetWidth();
+screen_height = Window.GetHeight();
+center_x = screen_width / 2;
+center_y = screen_height / 2;
+
+// ── Load Assets ─────────────────────────────────────────────────────────────
+
+logo_image = Image("logo.png");
+logo_sprite = Sprite(logo_image);
+logo_width = logo_image.GetWidth();
+logo_height = logo_image.GetHeight();
+logo_sprite.SetX(center_x - logo_width / 2);
+logo_sprite.SetY(center_y - 220);
+logo_sprite.SetOpacity(0);
+
+// ── Text Elements ───────────────────────────────────────────────────────────
+
+// Company name (small, above title)
+company_image = Image.Text("KahLuna Systems", 0.42, 0.48, 0.60, "Sans 11");
+company_sprite = Sprite(company_image);
+company_sprite.SetX(center_x - company_image.GetWidth() / 2);
+company_sprite.SetY(center_y - 130);
+company_sprite.SetOpacity(0);
+
+// Main title
+title_image = Image.Text("WARP Gateway Boot Sequence", 0.88, 0.90, 0.94, "Sans Bold 16");
+title_sprite = Sprite(title_image);
+title_sprite.SetX(center_x - title_image.GetWidth() / 2);
+title_sprite.SetY(center_y - 105);
+title_sprite.SetOpacity(0);
+
+// ── Boot Steps ──────────────────────────────────────────────────────────────
+
+// Step definitions
+step_count = 4;
+step_labels[0] = "Initializing system core";
+step_labels[1] = "Loading network interfaces";
+step_labels[2] = "Establishing encrypted tunnels";
+step_labels[3] = "Synchronizing control plane";
+
+// Status messages per step
+status_messages[0] = "STATUS: INITIALIZING SYSTEM CORE";
+status_messages[1] = "STATUS: LOADING NETWORK STACK";
+status_messages[2] = "STATUS: ESTABLISHING SECURE TUNNELS";
+status_messages[3] = "STATUS: BRINGING EDGE NODE ONLINE";
+
+// Step sprites (arrow + label + status indicator)
+step_y_start = center_y - 55;
+step_spacing = 32;
+step_x = center_x - 180;
+
+for (i = 0; i < step_count; i++) {
+    // Arrow indicator
+    arrow_images[i] = Image.Text("->", 0.00, 0.82, 1.00, "Sans 12");  // cyan
+    arrow_sprites[i] = Sprite(arrow_images[i]);
+    arrow_sprites[i].SetX(step_x);
+    arrow_sprites[i].SetY(step_y_start + i * step_spacing);
+    arrow_sprites[i].SetOpacity(0);
+
+    // Step label
+    label_images[i] = Image.Text(step_labels[i], 0.88, 0.90, 0.94, "Sans 12");
+    label_sprites[i] = Sprite(label_images[i]);
+    label_sprites[i].SetX(step_x + 30);
+    label_sprites[i].SetY(step_y_start + i * step_spacing);
+    label_sprites[i].SetOpacity(0);
+
+    // Status indicator (starts as "..", becomes checkmark)
+    pending_images[i] = Image.Text("..", 0.42, 0.48, 0.60, "Sans 12");
+    pending_sprites[i] = Sprite(pending_images[i]);
+    pending_sprites[i].SetX(step_x + 320);
+    pending_sprites[i].SetY(step_y_start + i * step_spacing);
+    pending_sprites[i].SetOpacity(0);
+
+    // Checkmark (hidden initially)
+    check_images[i] = Image.Text("OK", 0.00, 0.90, 0.46, "Sans Bold 12");  // green
+    check_sprites[i] = Sprite(check_images[i]);
+    check_sprites[i].SetX(step_x + 320);
+    check_sprites[i].SetY(step_y_start + i * step_spacing);
+    check_sprites[i].SetOpacity(0);
+}
+
+// ── Progress Bar ────────────────────────────────────────────────────────────
+
+progress_y = step_y_start + step_count * step_spacing + 25;
+progress_width = 360;
+progress_height = 6;
+progress_x = center_x - progress_width / 2;
+
+// Background bar
+bar_bg = Image(progress_width, progress_height);
+for (px = 0; px < progress_width; px++) {
+    for (py = 0; py < progress_height; py++) {
+        bar_bg.SetPixel(px, py, 0.10, 0.13, 0.21, 1.0);  // #1A2035
+    }
+}
+bar_bg_sprite = Sprite(bar_bg);
+bar_bg_sprite.SetX(progress_x);
+bar_bg_sprite.SetY(progress_y);
+bar_bg_sprite.SetOpacity(0);
+
+// Fill bar (will be resized dynamically)
+bar_fill_max = progress_width;
+current_fill = 0;
+
+// ── Status Text ─────────────────────────────────────────────────────────────
+
+status_y = progress_y + 25;
+status_image = Image.Text("STATUS: INITIALIZING", 0.00, 0.82, 1.00, "Sans 10");
+status_sprite = Sprite(status_image);
+status_sprite.SetX(center_x - status_image.GetWidth() / 2);
+status_sprite.SetY(status_y);
+status_sprite.SetOpacity(0);
+
+// ── Footer ──────────────────────────────────────────────────────────────────
+
+footer_image = Image.Text("WARP OS  |  Secure Edge Gateway", 0.30, 0.36, 0.50, "Sans 9");
+footer_sprite = Sprite(footer_image);
+footer_sprite.SetX(center_x - footer_image.GetWidth() / 2);
+footer_sprite.SetY(screen_height - 50);
+footer_sprite.SetOpacity(0);
+
+// ── Animation State ─────────────────────────────────────────────────────────
+
+global.progress = 0;
+global.frame = 0;
+global.current_step = -1;
+global.fade_in_done = 0;
+
+// ── Refresh Callback (called every frame) ───────────────────────────────────
+
+fun refresh_callback() {
+    global.frame++;
+
+    // Phase 1: Fade in static elements (frames 0-30)
+    if (global.frame < 30) {
+        opacity = global.frame / 30.0;
+        logo_sprite.SetOpacity(opacity);
+        company_sprite.SetOpacity(opacity * 0.7);
+        title_sprite.SetOpacity(opacity);
+        footer_sprite.SetOpacity(opacity * 0.5);
+        bar_bg_sprite.SetOpacity(opacity);
+        return;
+    }
+
+    if (global.fade_in_done == 0) {
+        logo_sprite.SetOpacity(1);
+        company_sprite.SetOpacity(0.7);
+        title_sprite.SetOpacity(1);
+        footer_sprite.SetOpacity(0.5);
+        bar_bg_sprite.SetOpacity(1);
+        global.fade_in_done = 1;
+    }
+
+    // Phase 2: Animate steps based on progress
+    // Map progress (0-1) to steps
+    step_progress = global.progress * step_count;
+    active_step = Math.Int(step_progress);
+
+    if (active_step > step_count - 1)
+        active_step = step_count - 1;
+
+    // Show and update steps
+    for (i = 0; i < step_count; i++) {
+        if (i <= active_step) {
+            // This step should be visible
+            arrow_sprites[i].SetOpacity(1);
+            label_sprites[i].SetOpacity(1);
+
+            if (i < active_step) {
+                // Completed step -- show checkmark
+                pending_sprites[i].SetOpacity(0);
+                check_sprites[i].SetOpacity(1);
+            } else {
+                // Active step -- show pending indicator
+                pending_sprites[i].SetOpacity(0.7);
+                check_sprites[i].SetOpacity(0);
+            }
+        } else {
+            // Future step -- dim
+            arrow_sprites[i].SetOpacity(0.2);
+            label_sprites[i].SetOpacity(0.2);
+            pending_sprites[i].SetOpacity(0);
+            check_sprites[i].SetOpacity(0);
+        }
+    }
+
+    // Update progress bar fill
+    target_fill = Math.Int(global.progress * bar_fill_max);
+    if (target_fill > current_fill)
+        current_fill = current_fill + 2;
+    if (current_fill > target_fill)
+        current_fill = target_fill;
+    if (current_fill > bar_fill_max)
+        current_fill = bar_fill_max;
+
+    if (current_fill > 0) {
+        bar_fill = Image(current_fill, progress_height);
+        for (px = 0; px < current_fill; px++) {
+            for (py = 0; py < progress_height; py++) {
+                // Cyan gradient with slight glow
+                intensity = 0.8 + 0.2 * (px / bar_fill_max);
+                bar_fill.SetPixel(px, py, 0.00 * intensity, 0.82 * intensity, 1.00 * intensity, 1.0);
+            }
+        }
+        bar_fill_sprite = Sprite(bar_fill);
+        bar_fill_sprite.SetX(progress_x);
+        bar_fill_sprite.SetY(progress_y);
+        bar_fill_sprite.SetOpacity(1);
+    }
+
+    // Update status text
+    if (active_step != global.current_step) {
+        global.current_step = active_step;
+        if (active_step >= 0 && active_step < step_count) {
+            status_sprite.SetImage(Image.Text(status_messages[active_step], 0.00, 0.82, 1.00, "Sans 10"));
+            status_sprite.SetX(center_x - status_sprite.GetImage().GetWidth() / 2);
+        }
+        status_sprite.SetOpacity(0.9);
+    }
+
+    // Final state: all complete
+    if (global.progress >= 1.0) {
+        for (i = 0; i < step_count; i++) {
+            pending_sprites[i].SetOpacity(0);
+            check_sprites[i].SetOpacity(1);
+        }
+        status_sprite.SetImage(Image.Text("SYSTEM READY", 0.00, 0.90, 0.46, "Sans Bold 11"));
+        status_sprite.SetX(center_x - status_sprite.GetImage().GetWidth() / 2);
+        status_sprite.SetOpacity(1);
+    }
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+// ── Boot Progress Callback ──────────────────────────────────────────────────
+
+fun boot_progress_callback(duration, progress) {
+    global.progress = progress;
+}
+
+Plymouth.SetBootProgressFunction(boot_progress_callback);
+
+// ── Message Callback (for system messages) ──────────────────────────────────
+
+fun message_callback(text) {
+    // Could display system messages, but we keep it clean
+}
+
+Plymouth.SetMessageFunction(message_callback);
+
+// ── Quit Callback ───────────────────────────────────────────────────────────
+
+fun quit_callback() {
+    // Fade out
+    logo_sprite.SetOpacity(0);
+    company_sprite.SetOpacity(0);
+    title_sprite.SetOpacity(0);
+    footer_sprite.SetOpacity(0);
+    status_sprite.SetOpacity(0);
+    bar_bg_sprite.SetOpacity(0);
+    for (i = 0; i < step_count; i++) {
+        arrow_sprites[i].SetOpacity(0);
+        label_sprites[i].SetOpacity(0);
+        pending_sprites[i].SetOpacity(0);
+        check_sprites[i].SetOpacity(0);
+    }
+}
+
+Plymouth.SetQuitFunction(quit_callback);

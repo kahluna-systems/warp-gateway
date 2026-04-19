@@ -22,8 +22,12 @@ def main():
         session_mgr = SessionManager()
 
         # Determine connection type
-        source_ip = os.environ.get('SSH_CLIENT', '').split()[0] if 'SSH_CLIENT' in os.environ else 'console'
-        conn_type = 'ssh' if 'SSH_CLIENT' in os.environ else 'console'
+        ssh_client = os.environ.get('SSH_CLIENT', '')
+        conn_type = 'ssh' if ssh_client else 'console'
+        try:
+            source_ip = ssh_client.split()[0] if ssh_client else 'console'
+        except (IndexError, AttributeError):
+            source_ip = 'unknown'
 
         # Check for first boot (no startup-config or empty database)
         from models_new import User, GatewayConfig
@@ -67,12 +71,15 @@ def main():
                 if not user:
                     sys.exit(1)
             else:
-                # SSH: map OS user to DB user
+                # SSH: try to map OS user to DB user, fall back to login prompt
                 os_user = os.environ.get('USER', '')
                 user = User.query.filter_by(username=os_user).first()
                 if not user:
-                    print(f'% User "{os_user}" not found in gateway database')
-                    sys.exit(1)
+                    # OS user doesn't match a DB user (e.g., 'warp' system user)
+                    # Prompt for gateway credentials instead
+                    user = _console_login(session_mgr)
+                    if not user:
+                        sys.exit(1)
 
         # Create session and start shell
         session_id = session_mgr.create_session(user, source_ip, conn_type)

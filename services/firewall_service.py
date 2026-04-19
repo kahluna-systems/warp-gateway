@@ -14,8 +14,13 @@ def apply_default_policy():
     """Apply the default firewall policy on startup."""
     wan = get_wan_interface()
     lan = get_lan_interface()
-    wan_name = wan.name if wan else 'eth0'
-    lan_name = lan.name if lan else 'eth1'
+
+    if not wan and not lan:
+        logger.warning('No WAN or LAN interfaces configured — skipping firewall policy')
+        return False
+
+    wan_name = wan.name if wan else None
+    lan_name = lan.name if lan else None
 
     success = sys_fw.set_default_policy(wan_name, lan_name)
     if success:

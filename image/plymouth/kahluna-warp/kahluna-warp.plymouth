@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=KahLuna WARP OS
+Description=Enterprise boot splash for KahLuna WARP Gateway
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/kahluna-warp
+ScriptFile=/usr/share/plymouth/themes/kahluna-warp/kahluna-warp.script
