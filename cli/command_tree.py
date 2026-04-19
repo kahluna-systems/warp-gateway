@@ -161,6 +161,11 @@ def build_privileged_tree() -> dict:
         params=[ParamDef('server', 'iperf3 server address')],
         min_role='operator',
     )
+    tree['setup'] = CommandNode(
+        'setup', 'Run the first-boot setup wizard',
+        handler=sys_h.do_setup,
+        min_role='admin',
+    )
 
     return tree
 
@@ -198,6 +203,21 @@ def build_configure_tree() -> dict:
         ],
     ))
     tree['nexus'].add_child(CommandNode('deregister', 'Deregister from KahLuna Platform Core', handler=sys_h.nexus_deregister))
+
+    tree['webui'] = CommandNode('webui', 'Configure the web UI')
+    tree['webui'].add_child(CommandNode(
+        'enable', 'Enable the web UI',
+        handler=sys_h.webui_enable,
+    ))
+    tree['webui'].add_child(CommandNode(
+        'disable', 'Disable the web UI',
+        handler=sys_h.webui_disable,
+    ))
+    tree['webui'].add_child(CommandNode(
+        'listen', 'Set which interface the web UI listens on',
+        handler=sys_h.webui_listen,
+        params=[ParamDef('interface', 'Interface name, "all", or "localhost"')],
+    ))
 
     tree['exit'] = CommandNode('exit', 'Return to privileged mode')
     tree['end'] = CommandNode('end', 'Return to privileged mode')

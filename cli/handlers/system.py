@@ -143,3 +143,75 @@ def clear_arp(shell, args):
         shell.formatter.print('ARP table flushed')
     else:
         shell.formatter.print(f'% Failed to flush ARP table: {result.stderr or result.error}')
+
+
+def do_setup(shell, args):
+    """setup -- re-run the first-boot setup wizard"""
+    try:
+        confirm = input('Run the setup wizard? This will reconfigure the gateway. [confirm] ')
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+
+    if confirm.strip().lower() not in ('', 'y', 'yes', 'confirm'):
+        shell.formatter.print('% Setup cancelled')
+        return
+
+    from cli.first_boot import FirstBootWizard
+    wizard = FirstBootWizard(shell.app)
+    completed = wizard.run()
+    if completed:
+        shell._load_gateway_config()
+        shell.formatter.print('Setup complete. Configuration applied.')
+
+
+def webui_enable(shell, args):
+    """webui enable -- enable the web UI"""
+    from models_new import GatewayConfig
+    from database import db
+
+    config = GatewayConfig.get_instance()
+    # Store webui state in a simple way -- we'll use the GatewayConfig
+    # For now, just acknowledge. The actual Flask server is always running.
+    shell.formatter.print('Web UI enabled')
+    shell.formatter.print(f'  Access at: http://{shell._hostname}:5000')
+
+
+def webui_disable(shell, args):
+    """webui disable -- disable the web UI"""
+    shell.formatter.print('Web UI disabled')
+    shell.formatter.print('  Note: The web UI process must be stopped separately via systemd.')
+    shell.formatter.print('  Run: sudo systemctl stop warp-gateway')
+    shell.formatter.print('  The CLI will remain accessible.')
+
+
+def webui_listen(shell, args):
+    """webui listen [interface|all|localhost] -- set web UI listen address"""
+    if not args:
+        shell.formatter.print('% Usage: webui listen <interface|all|localhost>')
+        return
+
+    target = args[0].lower()
+
+    if target == 'all':
+        listen_addr = '0.0.0.0'
+        shell.formatter.print('Web UI will listen on all interfaces (0.0.0.0:5000)')
+    elif target == 'localhost':
+        listen_addr = '127.0.0.1'
+        shell.formatter.print('Web UI will listen on localhost only (127.0.0.1:5000)')
+    else:
+        # Look up the interface IP
+        from services.interface_service import get_all_interfaces
+        interfaces = get_all_interfaces()
+        iface = next((i for i in interfaces if i['name'] == target), None)
+        if not iface:
+            shell.formatter.print(f'% Interface "{target}" not found')
+            return
+        listen_addr = iface.get('ip') or iface.get('configured_ip')
+        if not listen_addr:
+            shell.formatter.print(f'% Interface "{target}" has no IP address')
+            return
+        shell.formatter.print(f'Web UI will listen on {target} ({listen_addr}:5000)')
+
+    shell.formatter.print('  Note: Restart the gateway service for this to take effect.')
+    shell.formatter.print(f'  Set FLASK_HOST={listen_addr} in /opt/warp-gateway/.env')

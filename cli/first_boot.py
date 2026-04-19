@@ -77,6 +77,45 @@ def _prompt_yes_no(message, default='y'):
     return result.lower() in ('y', 'yes')
 
 
+def _prompt_interface(message, interfaces):
+    """
+    Prompt the user to select an interface by number or name.
+    Accepts: 1, 2, ... or ens33, ens38, etc.
+    """
+    names = [i['name'] for i in interfaces]
+    while True:
+        # Show options
+        for idx, iface in enumerate(interfaces, 1):
+            print(f'    {idx}) {iface["name"]}')
+
+        try:
+            value = input(f'  {message} [1-{len(interfaces)} or name]: ').strip()
+        except (EOFError, KeyboardInterrupt):
+            raise KeyboardInterrupt
+
+        if not value:
+            continue
+
+        # Try as number
+        if value.isdigit():
+            idx = int(value)
+            if 1 <= idx <= len(interfaces):
+                return interfaces[idx - 1]['name']
+            print(f'  * Enter a number between 1 and {len(interfaces)}')
+            continue
+
+        # Try as name
+        if value in names:
+            return value
+
+        # Try case-insensitive
+        for name in names:
+            if name.lower() == value.lower():
+                return name
+
+        print(f'  * Not recognized. Enter a number or interface name.')
+
+
 def _validate_ip(value):
     """Validate an IP address."""
     try:
@@ -238,16 +277,58 @@ class FirstBootWizard:
         if physical:
             print(f'  Found {len(physical)} interface(s):')
             print()
-            print(f'  {"#":<4}{"Name":<12}{"MAC":<20}{"Link":<8}{"Driver":<15}')
-            print(f'  {"-"*4}{"-"*12}{"-"*20}{"-"*8}{"-"*15}')
+            print(f'  {"#":<4}{"Name":<12}{"MAC":<20}{"Link":<8}{"Driver":<15}{"DHCP":<10}')
+            print(f'  {"-"*4}{"-"*12}{"-"*20}{"-"*8}{"-"*15}{"-"*10}')
+
+            dhcp_results = {}
             for idx, iface in enumerate(physical, 1):
                 link = 'UP' if iface.link_up else 'DOWN'
                 driver = iface.driver or 'unknown'
-                print(f'  {idx:<4}{iface.name:<12}{iface.mac:<20}{link:<8}{driver:<15}')
+
+                # Check for DHCP offers on UP interfaces
+                dhcp_status = ''
+                if iface.link_up:
+                    dhcp_status = self._check_dhcp(iface.name)
+                    dhcp_results[iface.name] = dhcp_status
+
+                print(f'  {idx:<4}{iface.name:<12}{iface.mac:<20}{link:<8}{driver:<15}{dhcp_status:<10}')
+
             print()
+
+            # Hint about DHCP detection
+            dhcp_ifaces = [name for name, status in dhcp_results.items() if status == 'Detected']
+            if dhcp_ifaces:
+                print(f'  * DHCP detected on: {", ".join(dhcp_ifaces)}')
+                print(f'    This is likely your WAN/upstream connection.')
+                print()
 
         return [{'name': i.name, 'mac': i.mac, 'link_up': i.link_up, 'driver': i.driver}
                 for i in physical]
+
+    def _check_dhcp(self, interface_name) -> str:
+        """Quick check for DHCP server presence on an interface."""
+        from system.commander import run
+        # Use nmap or dhclient to probe -- fall back to checking if we got an IP via DHCP
+        # Quick method: check if dhclient lease file exists or if the interface has an IP
+        result = run(['ip', '-4', 'addr', 'show', interface_name])
+        if result.success and 'inet ' in result.stdout and 'dynamic' in result.stdout:
+            return 'Detected'
+
+        # Try a fast dhcp discover (2 second timeout)
+        result = run(
+            ['timeout', '3', 'dhclient', '-1', '-nw', '-pf', f'/tmp/dhcp_test_{interface_name}.pid',
+             '-lf', f'/tmp/dhcp_test_{interface_name}.lease', interface_name],
+            sudo=True, timeout=5,
+        )
+        # Clean up
+        run(['dhclient', '-r', '-pf', f'/tmp/dhcp_test_{interface_name}.pid', interface_name],
+            sudo=True, timeout=5)
+        run(['rm', '-f', f'/tmp/dhcp_test_{interface_name}.pid', f'/tmp/dhcp_test_{interface_name}.lease'],
+            timeout=5)
+
+        if result.success:
+            return 'Detected'
+        return ''
 
     def _prompt_wan_assignment(self, interfaces) -> str:
         """Prompt the operator to select the WAN interface."""
@@ -259,8 +340,7 @@ class FirstBootWizard:
             if _prompt_yes_no(f'Use {name} as WAN?', default='y'):
                 return name
 
-        names = [i['name'] for i in interfaces]
-        return _prompt('Select WAN interface', choices=names)
+        return _prompt_interface('Select WAN interface', interfaces)
 
     def _prompt_lan_assignment(self, remaining) -> str:
         """Prompt the operator to select the LAN interface."""
@@ -277,8 +357,7 @@ class FirstBootWizard:
             if _prompt_yes_no(f'Use {name} as LAN?', default='y'):
                 return name
 
-        names = [i['name'] for i in remaining]
-        return _prompt('Select LAN interface', choices=names)
+        return _prompt_interface('Select LAN interface', remaining)
 
     def _prompt_wan_config(self, wan_iface) -> dict:
         """Prompt for WAN interface configuration."""

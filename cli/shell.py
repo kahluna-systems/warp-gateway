@@ -99,10 +99,13 @@ class WarpShell(cmd.Cmd):
             print(f'WAN IP:   {public_ip}')
             print(f'Uptime:   {health.get("uptime", "unknown")}')
             print()
+            print(f'Web UI:   http://{wan_ip or "localhost"}:5000')
+            print()
         except Exception:
             print()
             print(f'KahLuna WARP Gateway')
             print(f'Hostname: {self._hostname}')
+            print(f'Web UI:   http://localhost:5000')
             print()
 
     def _get_version(self):

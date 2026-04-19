@@ -89,14 +89,29 @@ def detect_all() -> list:
             info.is_physical = True
             info.driver = driver_result.stdout.split("/")[-1]
 
-        # Check if wireless
-        wireless_result = run(["test", "-d", f"/sys/class/net/{name}/wireless"])
-        info.is_wireless = wireless_result.success
+        # Check if wireless (suppress warning -- expected to fail on wired NICs)
+        import subprocess
+        try:
+            wireless_result = subprocess.run(
+                ["test", "-d", f"/sys/class/net/{name}/wireless"],
+                capture_output=True, timeout=5,
+            )
+            info.is_wireless = wireless_result.returncode == 0
+        except Exception:
+            info.is_wireless = False
 
-        # Get speed
-        speed_result = run(["cat", f"/sys/class/net/{name}/speed"])
-        if speed_result.success and speed_result.stdout.isdigit():
-            info.speed = f"{speed_result.stdout} Mbps"
+        # Get speed (suppress warning -- not all interfaces report speed)
+        try:
+            speed_result = subprocess.run(
+                ["cat", f"/sys/class/net/{name}/speed"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if speed_result.returncode == 0 and speed_result.stdout.strip().lstrip('-').isdigit():
+                speed_val = int(speed_result.stdout.strip())
+                if speed_val > 0:
+                    info.speed = f"{speed_val} Mbps"
+        except Exception:
+            pass
 
         # Get IP address
         addr_result = run(["ip", "-j", "addr", "show", name])
