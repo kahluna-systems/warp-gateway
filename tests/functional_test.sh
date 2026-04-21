@@ -54,7 +54,8 @@ echo ""
 # ── Helper: run a Python snippet in the Flask app context ────────────────────
 
 run_in_context() {
-    $PYTHON -c "
+    local tmpfile=$(mktemp /tmp/warp_test_XXXXXX.py)
+    cat > "$tmpfile" << PYEOF
 import sys, os
 sys.path.insert(0, '${GATEWAY_DIR}')
 os.chdir('${GATEWAY_DIR}')
@@ -62,7 +63,11 @@ from gateway import create_app
 app = create_app()
 with app.app_context():
     $1
-" 2>&1
+PYEOF
+    $PYTHON "$tmpfile" 2>&1
+    local rc=$?
+    rm -f "$tmpfile"
+    return $rc
 }
 
 # ============================================================================

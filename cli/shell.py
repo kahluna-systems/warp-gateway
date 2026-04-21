@@ -1,10 +1,15 @@
 """
 Main CLI shell -- WarpShell(cmd.Cmd).
 One instance per session. Provides the Cisco/Juniper-style interactive CLI.
+
+The "?" key is intercepted in real time (no Enter needed) using readline
+key bindings, matching Cisco IOS behavior.
 """
 import cmd
 import getpass
 import logging
+import os
+import sys
 
 from cli.modes import (
     ModeStack, EXEC, PRIVILEGED, CONFIGURE,
@@ -17,6 +22,84 @@ from cli.help_system import HelpSystem
 from cli.formatter import OutputFormatter
 
 logger = logging.getLogger('warp.cli.shell')
+
+
+def _setup_readline_help_binding(shell_ref):
+    """
+    Bind the '?' key in readline so it triggers help immediately
+    without requiring Enter. This is the Cisco IOS behavior.
+    """
+    try:
+        import readline
+
+        def _help_key_handler(count, key):
+            """Called when '?' is pressed. Shows help and re-presents the prompt."""
+            # Get the current input buffer
+            buf = readline.get_line_buffer()
+
+            # Print newline, then help
+            print()
+            help_text = shell_ref.help_sys.get_help(buf, shell_ref.mode_stack.current)
+            print(help_text)
+
+            # Re-display the prompt and current input
+            sys.stdout.write(shell_ref.prompt + buf)
+            sys.stdout.flush()
+
+            # Tell readline to redisplay
+            readline.redisplay()
+            return 0
+
+        # Bind '?' (ASCII 63) to our handler
+        readline.set_pre_input_hook(None)
+        readline.parse_and_bind('"?": "\\C-x?"')
+
+        # Use a startup hook to install the binding after readline is ready
+        # We use the callback approach via parse_and_bind with a macro
+        # that inserts nothing but triggers our function
+
+        # Alternative approach: use the rl_bind_key via ctypes
+        try:
+            import ctypes
+            import ctypes.util
+
+            # Find the readline library
+            lib_name = ctypes.util.find_library('readline')
+            if not lib_name:
+                # Try common paths
+                for candidate in ['libreadline.so', 'libreadline.so.8', 'libreadline.so.6']:
+                    try:
+                        ctypes.CDLL(candidate)
+                        lib_name = candidate
+                        break
+                    except OSError:
+                        continue
+
+            if lib_name:
+                rl_lib = ctypes.CDLL(lib_name)
+
+                # Define the callback type: int (*rl_command_func_t)(int, int)
+                RL_COMMAND_FUNC = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.c_int)
+
+                # Keep a reference to prevent garbage collection
+                shell_ref._help_callback = RL_COMMAND_FUNC(_help_key_handler)
+
+                # Bind '?' (key code 63) to our callback
+                rl_lib.rl_bind_key(63, shell_ref._help_callback)
+
+                logger.debug('Readline "?" binding installed via ctypes')
+                return True
+        except Exception as e:
+            logger.debug(f'ctypes readline binding failed: {e}')
+
+        # Fallback: use parse_and_bind to make '?' self-insert but we'll
+        # catch it in precmd. Not ideal but better than nothing.
+        logger.debug('Falling back to precmd-based "?" handling')
+        return False
+
+    except ImportError:
+        logger.debug('readline not available -- "?" requires Enter')
+        return False
 
 
 class WarpShell(cmd.Cmd):
@@ -54,6 +137,8 @@ class WarpShell(cmd.Cmd):
 
         self._hostname = 'warp-gw'
         self._management_mode = 'standalone'
+        self._help_binding_active = False
+        self._help_callback = None  # prevent GC of ctypes callback
         self._load_gateway_config()
 
     def _load_gateway_config(self):
@@ -74,8 +159,9 @@ class WarpShell(cmd.Cmd):
         return f'{self._hostname}{nexus}{suffix} '
 
     def preloop(self):
-        """Display MOTD when the shell starts."""
+        """Display MOTD and set up readline bindings when the shell starts."""
         self._show_motd()
+        self._help_binding_active = _setup_readline_help_binding(self)
 
     def _show_motd(self):
         """Display the message of the day."""
@@ -193,7 +279,7 @@ class WarpShell(cmd.Cmd):
         if not line.strip():
             return
 
-        # Check for "?" help request
+        # Handle "?" in the input (fallback if readline binding didn't work)
         if '?' in line:
             help_line = line.split('?')[0]
             help_text = self.help_sys.get_help(help_line, self.mode_stack.current)
