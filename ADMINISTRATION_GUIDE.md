@@ -206,15 +206,44 @@ kahluna-gw# copy running-config startup-config
 Running configuration saved to startup-config
 ```
 
+Or use the Cisco shorthand:
+
+```
+kahluna-gw# write memory
+Running configuration saved to startup-config
+```
+
+To disable pagination when viewing long output:
+
+```
+kahluna-gw# terminal length 0
+```
+
 To view the current configuration:
 
 ```
 kahluna-gw# show running-config
 ```
 
+Output can be filtered:
+
+```
+kahluna-gw# show running-config | include interface
+kahluna-gw# show running-config | display json
+```
+
 ---
 
 ## Diagnostics
+
+All diagnostic commands support output modifiers:
+
+```
+kahluna-gw> ping 8.8.8.8 | count
+kahluna-gw# show interfaces | display json
+kahluna-gw# show firewall rules | exclude ACCEPT
+kahluna-gw# show running-config | include interface
+```
 
 ### Ping
 
@@ -234,6 +263,13 @@ kahluna-gw> traceroute google.com
 kahluna-gw> nslookup api.kahluna.com
 ```
 
+### SSH to Another Device
+
+```
+kahluna-gw> ssh 10.246.247.100
+kahluna-gw> ssh 10.246.247.100 admin
+```
+
 ### Packet Capture (Privileged Mode)
 
 ```
@@ -244,6 +280,22 @@ kahluna-gw# capture ens33 tcp port 443 20
 
 ```
 kahluna-gw# iperf 10.0.0.1
+```
+
+### View Logs
+
+```
+kahluna-gw# show log
+kahluna-gw# show log 50
+kahluna-gw# show log | include firewall
+```
+
+### Technical Support Dump
+
+Generates a complete system state dump for support tickets:
+
+```
+kahluna-gw# show tech-support | no-more
 ```
 
 ---

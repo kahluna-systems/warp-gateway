@@ -5,6 +5,7 @@ Handles authentication, idle timeouts, concurrent session tracking, and audit lo
 import time
 import uuid
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -30,6 +31,9 @@ class SessionManager:
     def __init__(self, idle_timeout: int = 600):
         self.idle_timeout = idle_timeout  # 10 minutes default
         self._active_sessions: dict[str, SessionInfo] = {}
+        self._exclusive_lock_holder: str = None  # session_id
+        self._exclusive_lock = threading.Lock()
+        self._candidate_configs: dict = {}  # session_id -> CandidateConfig
 
     def authenticate(self, username: str, password: str):
         """
@@ -98,6 +102,11 @@ class SessionManager:
         from models_new import AuditLog
         from database import db
 
+        # Release exclusive lock if held
+        self.release_exclusive(session_id)
+        # Discard candidate config if any
+        self.discard_candidate(session_id)
+
         info = self._active_sessions.pop(session_id, None)
         if info:
             AuditLog.log(
@@ -158,3 +167,49 @@ class SessionManager:
     def active_count(self) -> int:
         """Return the number of active sessions."""
         return len(self._active_sessions)
+
+    # ── Exclusive Lock ───────────────────────────────────────────────────
+
+    def acquire_exclusive(self, session_id: str) -> bool:
+        """Attempt to acquire the exclusive configure lock."""
+        with self._exclusive_lock:
+            if self._exclusive_lock_holder is None or self._exclusive_lock_holder == session_id:
+                self._exclusive_lock_holder = session_id
+                return True
+            return False
+
+    def release_exclusive(self, session_id: str) -> None:
+        """Release the exclusive lock if held by this session."""
+        with self._exclusive_lock:
+            if self._exclusive_lock_holder == session_id:
+                self._exclusive_lock_holder = None
+
+    def get_exclusive_holder(self):
+        """Return the SessionInfo of the session holding the exclusive lock, or None."""
+        with self._exclusive_lock:
+            if self._exclusive_lock_holder:
+                return self._active_sessions.get(self._exclusive_lock_holder)
+        return None
+
+    def is_exclusive_blocked(self, session_id: str) -> bool:
+        """Return True if another session holds the exclusive lock."""
+        with self._exclusive_lock:
+            return (self._exclusive_lock_holder is not None
+                    and self._exclusive_lock_holder != session_id)
+
+    # ── Candidate Config (Configure Private) ─────────────────────────────
+
+    def create_candidate(self, session_id: str, baseline_text: str):
+        """Create a CandidateConfig for a configure private session."""
+        from cli.candidate_config import CandidateConfig
+        candidate = CandidateConfig(baseline_text)
+        self._candidate_configs[session_id] = candidate
+        return candidate
+
+    def get_candidate(self, session_id: str):
+        """Return the CandidateConfig for a session, or None."""
+        return self._candidate_configs.get(session_id)
+
+    def discard_candidate(self, session_id: str) -> None:
+        """Discard the CandidateConfig for a session."""
+        self._candidate_configs.pop(session_id, None)

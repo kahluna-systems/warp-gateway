@@ -26,7 +26,8 @@ The CLI, web UI, and API are peers -- they all call the same service layer. No b
 
 ## Features
 
-- Cisco/Juniper-style CLI with tab completion, "?" help, and command abbreviation
+- Cisco/Juniper-style CLI with tab completion, instant "?" help, and command abbreviation
+- Juniper-style pipe filters: `| include`, `| exclude`, `| begin`, `| count`, `| last`, `| display json/xml`, `| no-more`
 - Hierarchical CLI modes: exec, privileged, configure, and sub-modes (interface, firewall, VPN, DHCP, DNS)
 - Running-config / startup-config serialization (Cisco-style)
 - First-boot setup wizard with interface detection and DHCP probing
@@ -87,6 +88,16 @@ kahluna-gw(config-if)# ip address 10.246.247.1 255.255.255.0
 kahluna-gw(config-if)# exit
 kahluna-gw(config)# end
 kahluna-gw# copy running-config startup-config
+```
+
+Output can be filtered with Juniper-style pipes:
+
+```
+kahluna-gw# show running-config | include interface
+kahluna-gw# show interfaces | display json
+kahluna-gw# show firewall rules | exclude DROP
+kahluna-gw# show clients | count
+kahluna-gw# show tech-support | no-more
 ```
 
 See the [CLI Command Reference](CLI_REFERENCE.md) for the full command list.

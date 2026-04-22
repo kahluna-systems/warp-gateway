@@ -14,12 +14,14 @@ import sys
 from cli.modes import (
     ModeStack, EXEC, PRIVILEGED, CONFIGURE,
     CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
+    CONFIG_PRIVATE, CONFIG_EXCLUSIVE,
     PROMPT_SUFFIX,
 )
 from cli.parser import CommandParser, ParseResult
 from cli.completer import TabCompleter
 from cli.help_system import HelpSystem
 from cli.formatter import OutputFormatter
+from cli.pipe_filters import parse_pipe, apply_filters, get_filter_help
 
 logger = logging.getLogger('warp.cli.shell')
 
@@ -139,6 +141,8 @@ class WarpShell(cmd.Cmd):
         self._management_mode = 'standalone'
         self._help_binding_active = False
         self._help_callback = None  # prevent GC of ctypes callback
+        self._terminal_length = 24  # pagination page size (0 = disabled)
+        self._command_history = []  # session command history
         self._load_gateway_config()
 
     def _load_gateway_config(self):
@@ -237,7 +241,62 @@ class WarpShell(cmd.Cmd):
             print('% Must be in privileged mode')
             return
 
-        # Warn about concurrent configure sessions
+        mode_arg = args.strip().lower() if isinstance(args, str) else ''
+
+        # Check exclusive lock for all configure modes
+        if self.session_mgr and self.session_id:
+            if self.session_mgr.is_exclusive_blocked(self.session_id):
+                holder = self.session_mgr.get_exclusive_holder()
+                if holder:
+                    print(f'% Configuration locked by user "{holder.username}" from {holder.source_ip}')
+                else:
+                    print('% Configuration is locked by another session')
+                return
+
+        if mode_arg == 'private':
+            # Configure private -- isolated candidate config
+            from cli.config_serializer import ConfigSerializer
+            serializer = ConfigSerializer()
+            baseline = serializer.serialize_running_config()
+
+            if self.session_mgr and self.session_id:
+                self.session_mgr.create_candidate(self.session_id, baseline)
+
+                from models_new import AuditLog
+                from database import db
+                AuditLog.log('config_private_start',
+                             f'Configure private session started',
+                             ip_address=self.source_ip)
+                db.session.commit()
+
+            self.mode_stack.push(CONFIG_PRIVATE)
+            self._sync_session_mode()
+            return
+
+        if mode_arg == 'exclusive':
+            # Configure exclusive -- acquire lock
+            if self.session_mgr and self.session_id:
+                acquired = self.session_mgr.acquire_exclusive(self.session_id)
+                if not acquired:
+                    holder = self.session_mgr.get_exclusive_holder()
+                    if holder:
+                        print(f'% Configuration locked by user "{holder.username}" from {holder.source_ip}')
+                    else:
+                        print('% Configuration is locked by another session')
+                    return
+
+                from models_new import AuditLog
+                from database import db
+                AuditLog.log('config_exclusive_lock',
+                             f'Exclusive configure lock acquired',
+                             ip_address=self.source_ip)
+                db.session.commit()
+
+            self.mode_stack.push(CONFIG_EXCLUSIVE)
+            self._sync_session_mode()
+            return
+
+        # Standard configure terminal
         if self.session_mgr:
             others = self.session_mgr.get_configure_sessions()
             others = [s for s in others if s.session_id != self.session_id]
@@ -258,6 +317,33 @@ class WarpShell(cmd.Cmd):
 
         if current in (CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS):
             self.mode_stack.pop()
+        elif current == CONFIG_PRIVATE:
+            # Discard candidate and warn
+            if self.session_mgr and self.session_id:
+                candidate = self.session_mgr.get_candidate(self.session_id)
+                if candidate and candidate.commands:
+                    print('% Warning: uncommitted changes discarded')
+                self.session_mgr.discard_candidate(self.session_id)
+
+                from models_new import AuditLog
+                from database import db
+                AuditLog.log('config_private_end', 'Configure private session ended',
+                             ip_address=self.source_ip)
+                db.session.commit()
+
+            self.mode_stack.reset_to(PRIVILEGED)
+        elif current == CONFIG_EXCLUSIVE:
+            # Release exclusive lock
+            if self.session_mgr and self.session_id:
+                self.session_mgr.release_exclusive(self.session_id)
+
+                from models_new import AuditLog
+                from database import db
+                AuditLog.log('config_exclusive_unlock', 'Exclusive configure lock released',
+                             ip_address=self.source_ip)
+                db.session.commit()
+
+            self.mode_stack.reset_to(PRIVILEGED)
         elif current == CONFIGURE:
             self.mode_stack.reset_to(PRIVILEGED)
         elif current == PRIVILEGED:
@@ -268,7 +354,19 @@ class WarpShell(cmd.Cmd):
     def do_end(self, args):
         """Return to privileged mode from any config/sub-config mode."""
         current = self.mode_stack.current
-        if current in (CONFIGURE, CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS):
+        if current in (CONFIGURE, CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
+                       CONFIG_PRIVATE, CONFIG_EXCLUSIVE):
+            # Handle private/exclusive cleanup
+            if current == CONFIG_PRIVATE:
+                if self.session_mgr and self.session_id:
+                    candidate = self.session_mgr.get_candidate(self.session_id)
+                    if candidate and candidate.commands:
+                        print('% Warning: uncommitted changes discarded')
+                    self.session_mgr.discard_candidate(self.session_id)
+            elif current == CONFIG_EXCLUSIVE:
+                if self.session_mgr and self.session_id:
+                    self.session_mgr.release_exclusive(self.session_id)
+
             self.mode_stack.reset_to(PRIVILEGED)
             self._sync_session_mode()
 
@@ -282,23 +380,36 @@ class WarpShell(cmd.Cmd):
         # Handle "?" in the input (fallback if readline binding didn't work)
         if '?' in line:
             help_line = line.split('?')[0]
-            help_text = self.help_sys.get_help(help_line, self.mode_stack.current)
-            print(help_text)
+            # Check if asking about pipe filters
+            if '|' in help_line:
+                print(get_filter_help())
+            else:
+                help_text = self.help_sys.get_help(help_line, self.mode_stack.current)
+                print(help_text)
             return
+
+        # Record in session history
+        self._command_history.append(line.strip())
 
         # Touch session for idle timeout
         if self.session_mgr and self.session_id:
             self.session_mgr.touch(self.session_id)
 
-        result = self.parser.parse(line, self.mode_stack.current)
+        # Parse pipe filters
+        command, filters = parse_pipe(line)
+
+        if not command.strip():
+            return
+
+        result = self.parser.parse(command, self.mode_stack.current)
 
         if result.error == 'unknown':
-            print(f'% Unknown command "{line.strip()}"')
+            print(f'% Unknown command "{command.strip()}"')
             return
 
         if result.error == 'ambiguous':
             names = ', '.join(m.name for m in result.matches)
-            first_token = line.strip().split()[0] if line.strip() else ''
+            first_token = command.strip().split()[0] if command.strip() else ''
             print(f'% Ambiguous command "{first_token}": {names}')
             return
 
@@ -322,7 +433,28 @@ class WarpShell(cmd.Cmd):
                 self.session_mgr.record_command(self.session_id, line.strip())
 
             try:
-                node.handler(self, result.args)
+                if filters:
+                    # Capture output for pipe filtering
+                    import io
+                    import sys
+                    old_stdout = sys.stdout
+                    sys.stdout = capture = io.StringIO()
+                    try:
+                        node.handler(self, result.args)
+                    finally:
+                        sys.stdout = old_stdout
+                    raw_output = capture.getvalue()
+
+                    # Apply filters
+                    filtered, no_more = apply_filters(raw_output.rstrip('\n'), filters)
+
+                    # Output with or without pagination
+                    if no_more or self._terminal_length == 0:
+                        print(filtered)
+                    else:
+                        self.formatter.paginate(filtered)
+                else:
+                    node.handler(self, result.args)
             except Exception as e:
                 print(f'% Error: {e}')
                 logger.error(f'Command handler error: {e}', exc_info=True)

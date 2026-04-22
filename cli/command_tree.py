@@ -43,6 +43,7 @@ def build_exec_tree() -> dict:
     """Build the command tree for exec mode."""
     from cli.handlers import show as show_h
     from cli.handlers import diagnostics as diag_h
+    from cli.handlers import commit as commit_h
 
     tree = {}
 
@@ -77,16 +78,26 @@ def build_exec_tree() -> dict:
     show.add_child(CommandNode('dns', 'Display DNS information'))
     show.children['dns'].add_child(CommandNode('overrides', 'Display DNS overrides', handler=show_h.show_dns_overrides))
 
-    show.add_child(CommandNode('clients', 'Display connected clients', handler=show_h.show_clients))
+    show.add_child(CommandNode('clients', 'Display connected LAN and VPN clients', handler=show_h.show_clients))
+
+    show.add_child(CommandNode('arp', 'Display the full ARP table (all interfaces)', handler=show_h.show_arp))
 
     show.add_child(CommandNode('system', 'Display system information'))
     show.children['system'].add_child(CommandNode('health', 'Display system health', handler=show_h.show_system_health))
+    show.children['system'].add_child(CommandNode('rollback', 'Display available rollback versions', handler=commit_h.show_system_rollback))
 
     show.add_child(CommandNode('running-config', 'Display the active configuration', handler=show_h.show_running_config))
     show.add_child(CommandNode('startup-config', 'Display the saved startup configuration', handler=show_h.show_startup_config))
     show.add_child(CommandNode('version', 'Display software version and system info', handler=show_h.show_version))
     show.add_child(CommandNode('nexus', 'Display KahLuna Nexus information'))
     show.children['nexus'].add_child(CommandNode('status', 'Display Nexus registration status', handler=show_h.show_nexus_status))
+
+    show.add_child(CommandNode('log', 'Display recent log entries', handler=show_h.show_log,
+        params=[ParamDef('count', 'Number of entries (default: 20)', required=False)],
+    ))
+    show.add_child(CommandNode('uptime', 'Display system uptime', handler=show_h.show_uptime))
+    show.add_child(CommandNode('history', 'Display command history', handler=show_h.show_history))
+    show.add_child(CommandNode('tech-support', 'Dump full system state for support', handler=show_h.show_tech_support))
 
     # ── diagnostics ──────────────────────────────────────────────────────
     tree['ping'] = CommandNode(
@@ -119,6 +130,11 @@ def build_exec_tree() -> dict:
     tree['enable'] = CommandNode('enable', 'Enter privileged mode')
     tree['exit'] = CommandNode('exit', 'Exit the current mode or disconnect')
     tree['help'] = CommandNode('help', 'Display available commands')
+    tree['ssh'] = CommandNode(
+        'ssh', 'SSH to another host',
+        handler=diag_h.do_ssh,
+        params=[ParamDef('host', 'Hostname or IP address')],
+    )
 
     return tree
 
@@ -127,12 +143,14 @@ def build_privileged_tree() -> dict:
     """Build additional commands for privileged mode."""
     from cli.handlers import system as sys_h
     from cli.handlers import diagnostics as diag_h
+    from cli.handlers import commit as commit_h
 
     tree = {}
 
     tree['configure'] = CommandNode(
         'configure', 'Enter configuration mode',
-        params=[ParamDef('terminal', '"terminal" keyword', required=False, choices=['terminal'])],
+        params=[ParamDef('mode', '"terminal", "private", or "exclusive"',
+                         required=False, choices=['terminal', 'private', 'exclusive'])],
     )
     tree['disable'] = CommandNode('disable', 'Return to exec mode')
     tree['reload'] = CommandNode('reload', 'Restart the gateway', handler=sys_h.do_reload)
@@ -166,6 +184,31 @@ def build_privileged_tree() -> dict:
         handler=sys_h.do_setup,
         min_role='admin',
     )
+    tree['write'] = CommandNode('write', 'Write configuration')
+    tree['write'].add_child(CommandNode('memory', 'Save running-config to startup-config', handler=sys_h.write_memory))
+
+    tree['terminal'] = CommandNode('terminal', 'Set terminal parameters')
+    tree['terminal'].add_child(CommandNode(
+        'length', 'Set pagination length (0 to disable)',
+        handler=sys_h.terminal_length,
+        params=[ParamDef('lines', 'Number of lines (0 = no pagination)')],
+    ))
+
+    tree['commit'] = CommandNode(
+        'commit', 'Commit the running configuration',
+        handler=commit_h.do_commit,
+        params=[
+            ParamDef('confirmed', '"confirmed" keyword', required=False, choices=['confirmed']),
+            ParamDef('minutes', 'Auto-rollback timer in minutes (1-60)', required=False),
+        ],
+        min_role='operator',
+    )
+    tree['rollback'] = CommandNode(
+        'rollback', 'Load a previous configuration version',
+        handler=commit_h.do_rollback,
+        params=[ParamDef('version', 'Rollback version number (0-49)')],
+        min_role='operator',
+    )
 
     return tree
 
@@ -173,6 +216,7 @@ def build_privileged_tree() -> dict:
 def build_configure_tree() -> dict:
     """Build commands for configure mode."""
     from cli.handlers import system as sys_h
+    from cli.handlers import commit as commit_h
 
     tree = {}
 
@@ -223,6 +267,21 @@ def build_configure_tree() -> dict:
     tree['end'] = CommandNode('end', 'Return to privileged mode')
     tree['help'] = CommandNode('help', 'Display available commands')
     tree['show'] = CommandNode('show', 'Display system information (available in all modes)')
+    tree['commit'] = CommandNode(
+        'commit', 'Commit the running configuration',
+        handler=commit_h.do_commit,
+        params=[
+            ParamDef('confirmed', '"confirmed" keyword', required=False, choices=['confirmed']),
+            ParamDef('minutes', 'Auto-rollback timer in minutes (1-60)', required=False),
+        ],
+        min_role='operator',
+    )
+    tree['rollback'] = CommandNode(
+        'rollback', 'Load a previous configuration version',
+        handler=commit_h.do_rollback,
+        params=[ParamDef('version', 'Rollback version number (0-49)')],
+        min_role='operator',
+    )
 
     return tree
 

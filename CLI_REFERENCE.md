@@ -17,7 +17,33 @@ The CLI uses a hierarchical mode system similar to Cisco IOS.
 
 Commands can be abbreviated as long as the abbreviation is unambiguous. For example, `sh int` resolves to `show interfaces`.
 
-Type `?` at any point to see available commands or arguments.
+Type `?` at any point to see available commands or arguments. Help appears instantly without pressing Enter.
+
+## Output Modifiers (Pipe Filters)
+
+Any show command can be piped through output modifiers using `|`:
+
+```
+kahluna-gw# show running-config | include interface
+kahluna-gw# show interfaces | display json
+kahluna-gw# show firewall rules | exclude DROP
+kahluna-gw# show clients | count
+kahluna-gw# show log | last 5
+kahluna-gw# show tech-support | no-more
+```
+
+| Filter | Description |
+|--------|-------------|
+| `\| include <pattern>` | Show only lines matching a pattern (regex) |
+| `\| exclude <pattern>` | Hide lines matching a pattern |
+| `\| begin <pattern>` | Start output from the first matching line |
+| `\| count` | Count the number of output lines |
+| `\| last <n>` | Show the last N lines |
+| `\| display json` | Format output as JSON |
+| `\| display xml` | Format output as XML |
+| `\| no-more` | Disable pagination for this command |
+
+Filters can be chained: `show interfaces | include WAN | display json`
 
 ---
 
@@ -123,6 +149,62 @@ Display software version, hostname, platform, and uptime.
 
 Display KahLuna Nexus registration status and heartbeat state.
 
+### show log [count]
+
+Display recent audit and system log entries. Default: 20 entries.
+
+```
+kahluna-gw# show log
+Time                 Action            Details                                              User
+-------------------  ----------------  ---------------------------------------------------  --------
+2026-04-19 20:30:00  cli_session_start CLI session started via ssh from 192.168.10.251      admin
+2026-04-19 20:28:23  interface_assign  ens38 assigned as LAN                                System
+2026-04-19 20:28:23  interface_assign  ens33 assigned as WAN                                System
+
+kahluna-gw# show log 5
+```
+
+### show uptime
+
+Display system uptime (quick shortcut).
+
+```
+kahluna-gw> show uptime
+Uptime: 2d 4h 15m
+```
+
+### show arp
+
+Display the full ARP table across all interfaces (including WAN).
+
+```
+kahluna-gw> show arp
+IP Address       MAC Address        Interface  State
+---------------  -----------------  ---------  ---------
+192.168.10.254   c0:06:c3:f0:7b:bd  ens33      REACHABLE
+192.168.10.251   6c:02:e0:60:dc:66  ens33      STALE
+```
+
+### show history
+
+Display commands entered in the current CLI session.
+
+```
+kahluna-gw# show history
+     1  show interfaces
+     2  show ip route
+     3  show system health
+     4  configure terminal
+```
+
+### show tech-support
+
+Dump the full system state into a single output for support tickets. Includes version, interfaces, routes, firewall, VPN, DHCP, DNS, clients, health, nexus status, running-config, and recent logs.
+
+```
+kahluna-gw# show tech-support | no-more
+```
+
 ### ping [target]
 
 Send ICMP echo requests to a hostname or IP.
@@ -155,6 +237,15 @@ Perform a detailed DNS lookup.
 
 Enter privileged mode. Prompts for the enable password.
 
+### ssh [host] [user]
+
+SSH to another host from the gateway. Useful for hopping to other devices.
+
+```
+kahluna-gw> ssh 10.246.247.100
+kahluna-gw> ssh 10.246.247.100 admin
+```
+
 ### exit
 
 Disconnect from the CLI.
@@ -172,6 +263,27 @@ Enter configuration mode.
 ### setup
 
 Re-run the first-boot setup wizard. Prompts for confirmation.
+
+### write memory
+
+Alias for `copy running-config startup-config`. Network engineers type this reflexively.
+
+```
+kahluna-gw# write memory
+Running configuration saved to startup-config
+```
+
+### terminal length [lines]
+
+Set the pagination page size. Use `0` to disable pagination entirely.
+
+```
+kahluna-gw# terminal length 0
+Pagination disabled
+
+kahluna-gw# terminal length 40
+Terminal length set to 40 lines
+```
 
 ### copy running-config startup-config
 

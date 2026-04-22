@@ -125,3 +125,29 @@ def do_iperf(shell, args):
         print(result.stdout)
     else:
         shell.formatter.print(f'% iperf3 failed: {result.stderr or result.error}')
+
+
+def do_ssh(shell, args):
+    """ssh [host] -- SSH to another host from the gateway"""
+    if not args:
+        shell.formatter.print('% Usage: ssh <hostname-or-ip> [user]')
+        return
+
+    host = args[0]
+    user = args[1] if len(args) > 1 else None
+
+    cmd = ['ssh']
+    if user:
+        cmd.extend(['-l', user])
+    cmd.append(host)
+
+    shell.formatter.print(f'Connecting to {host}...')
+
+    import subprocess
+    try:
+        # Run SSH interactively (takes over the terminal)
+        subprocess.run(cmd)
+    except FileNotFoundError:
+        shell.formatter.print('% ssh client not installed')
+    except Exception as e:
+        shell.formatter.print(f'% SSH error: {e}')

@@ -15,9 +15,12 @@ CONFIG_FW = 'config-fw'
 CONFIG_VPN = 'config-vpn'
 CONFIG_DHCP = 'config-dhcp'
 CONFIG_DNS = 'config-dns'
+CONFIG_PRIVATE = 'config-private'
+CONFIG_EXCLUSIVE = 'config-exclusive'
 
 # All valid modes
-ALL_MODES = {EXEC, PRIVILEGED, CONFIGURE, CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS}
+ALL_MODES = {EXEC, PRIVILEGED, CONFIGURE, CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
+             CONFIG_PRIVATE, CONFIG_EXCLUSIVE}
 
 # Sub-configuration modes (children of CONFIGURE)
 SUB_MODES = {CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS}
@@ -32,6 +35,8 @@ PROMPT_SUFFIX = {
     CONFIG_VPN: '(config-vpn)#',
     CONFIG_DHCP: '(config-dhcp)#',
     CONFIG_DNS: '(config-dns)#',
+    CONFIG_PRIVATE: '(config-private)#',
+    CONFIG_EXCLUSIVE: '(config-exclusive)#',
 }
 
 # Commands available in exec mode (read-only)

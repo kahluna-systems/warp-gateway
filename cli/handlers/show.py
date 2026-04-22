@@ -324,6 +324,22 @@ def show_clients(shell, args):
     print(shell.formatter.table(headers, rows))
 
 
+def show_arp(shell, args):
+    """show arp -- display the full ARP table across all interfaces"""
+    from system.interfaces import get_arp_table
+
+    entries = get_arp_table()
+    if not entries:
+        shell.formatter.print('ARP table is empty')
+        return
+
+    headers = ['IP Address', 'MAC Address', 'Interface', 'State']
+    rows = []
+    for e in entries:
+        rows.append([e.ip, e.mac, e.interface, e.state or 'unknown'])
+    print(shell.formatter.table(headers, rows))
+
+
 def show_system_health(shell, args):
     """show system health"""
     from services.health_service import get_system_health, get_dependency_status
@@ -444,3 +460,111 @@ def _format_bytes(b):
         return f'{b / 1048576:.1f} MB'
     else:
         return f'{b / 1073741824:.1f} GB'
+
+
+def show_log(shell, args):
+    """show log [count]"""
+    from models_new import AuditLog
+
+    count = 20
+    if args and args[0].isdigit():
+        count = int(args[0])
+
+    entries = AuditLog.recent(limit=count)
+    if not entries:
+        shell.formatter.print('No log entries')
+        return
+
+    headers = ['Time', 'Action', 'Details', 'User']
+    rows = []
+    for e in entries:
+        time_str = e.created_at.strftime('%Y-%m-%d %H:%M:%S') if e.created_at else 'N/A'
+        user = e.user.username if e.user else 'System'
+        details = (e.details or '')[:60]
+        rows.append([time_str, e.action, details, user])
+    print(shell.formatter.table(headers, rows))
+
+
+def show_uptime(shell, args):
+    """show uptime"""
+    from services.health_service import get_system_health
+    health = get_system_health()
+    print(f'Uptime: {health.get("uptime_human", "unknown")}')
+
+
+def show_history(shell, args):
+    """show history -- display commands entered in this session"""
+    if not shell._command_history:
+        shell.formatter.print('No command history')
+        return
+
+    for i, cmd in enumerate(shell._command_history, 1):
+        print(f'  {i:4d}  {cmd}')
+
+
+def show_tech_support(shell, args):
+    """show tech-support -- dump full system state for support tickets"""
+    print('=' * 60)
+    print('KahLuna WARP Gateway -- Technical Support Dump')
+    print('=' * 60)
+
+    print()
+    print('--- show version ---')
+    show_version(shell, [])
+
+    print()
+    print('--- show interfaces ---')
+    show_interfaces(shell, [])
+
+    print()
+    print('--- show ip route ---')
+    show_ip_route(shell, [])
+
+    print()
+    print('--- show firewall rules ---')
+    show_firewall_rules(shell, [])
+
+    print()
+    print('--- show vpn networks ---')
+    show_vpn_networks(shell, [])
+
+    print()
+    print('--- show vpn peers ---')
+    show_vpn_peers(shell, [])
+
+    print()
+    print('--- show dhcp config ---')
+    show_dhcp_config(shell, [])
+
+    print()
+    print('--- show dhcp leases ---')
+    show_dhcp_leases(shell, [])
+
+    print()
+    print('--- show dns overrides ---')
+    show_dns_overrides(shell, [])
+
+    print()
+    print('--- show clients ---')
+    show_clients(shell, [])
+
+    print()
+    print('--- show system health ---')
+    show_system_health(shell, [])
+
+    print()
+    print('--- show nexus status ---')
+    show_nexus_status(shell, [])
+
+    print()
+    print('--- show running-config ---')
+    show_running_config(shell, [])
+
+    print()
+    print('--- show log ---')
+    show_log(shell, ['50'])
+
+    print()
+    print('=' * 60)
+    print('End of technical support dump')
+    print('=' * 60)

@@ -46,21 +46,17 @@ def get_all_clients():
         if entry.ip not in seen_ips and entry.mac != '00:00:00:00:00:00':
             seen_ips.add(entry.ip)
 
-            # Determine client type based on which interface the ARP entry is on
+            # Only include LAN-side clients, not WAN-side infrastructure
             from models_new import InterfaceConfig
             iface_cfg = InterfaceConfig.query.filter_by(name=entry.interface).first()
             if iface_cfg and iface_cfg.role == 'WAN':
-                client_type = 'WAN'
-            elif iface_cfg and iface_cfg.role == 'LAN':
-                client_type = 'LAN'
-            else:
-                client_type = 'LAN'  # Default assumption
+                continue  # Skip WAN-side ARP entries -- not clients
 
             clients.append({
                 'name': '',
                 'ip': entry.ip,
                 'mac': entry.mac,
-                'type': client_type,
+                'type': 'LAN',
                 'source': 'ARP',
                 'status': entry.state.capitalize() if entry.state else 'Unknown',
                 'interface': entry.interface,

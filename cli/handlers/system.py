@@ -5,15 +5,9 @@ Handles copy, reload, hostname, nexus register/deregister, clear.
 
 
 def copy_running_startup(shell, args):
-    """copy running-config startup-config"""
-    from cli.config_serializer import ConfigSerializer
-
-    serializer = ConfigSerializer()
-    success = serializer.save_startup_config()
-    if success:
-        shell.formatter.print('Running configuration saved to startup-config')
-    else:
-        shell.formatter.print('% Failed to save startup configuration')
+    """copy running-config startup-config -- now delegates to commit"""
+    from cli.handlers.commit import do_commit
+    do_commit(shell, [])
 
 
 def do_reload(shell, args):
@@ -219,3 +213,24 @@ def webui_listen(shell, args):
 
     shell.formatter.print('  Note: Restart the gateway service for this to take effect.')
     shell.formatter.print(f'  Set FLASK_HOST={listen_addr} in /opt/warp-gateway/.env')
+
+
+def write_memory(shell, args):
+    """write memory -- alias for copy running-config startup-config"""
+    copy_running_startup(shell, args)
+
+
+def terminal_length(shell, args):
+    """terminal length [lines] -- set pagination (0 to disable)"""
+    if not args or not args[0].isdigit():
+        shell.formatter.print(f'Current terminal length: {shell._terminal_length}')
+        shell.formatter.print('Usage: terminal length <lines> (0 = no pagination)')
+        return
+
+    length = int(args[0])
+    shell._terminal_length = length
+    shell.formatter.page_size = length if length > 0 else 999999
+    if length == 0:
+        shell.formatter.print('Pagination disabled')
+    else:
+        shell.formatter.print(f'Terminal length set to {length} lines')
