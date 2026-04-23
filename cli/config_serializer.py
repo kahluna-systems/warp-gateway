@@ -260,6 +260,47 @@ class ConfigSerializer:
                 lines.append(f'  override {ov.hostname} {ov.ip}')
             lines.append('!')
 
+        # VLANs
+        try:
+            from models_new import Vlan, VlanSubInterface, SecurityZone, ZonePolicy
+            vlans = Vlan.query.order_by(Vlan.vlan_id).all()
+            if vlans:
+                for v in vlans:
+                    lines.append(f'vlan {v.vlan_id}')
+                    lines.append(f'  name {v.name}')
+                    lines.append('!')
+
+            # Switchport config is included in interface blocks above via to_dict
+            # Add switchport lines to interface blocks
+            for iface in InterfaceConfig.query.all():
+                if iface.switchport_mode and iface.switchport_mode != 'routed':
+                    # These are appended as comments since they're already in the interface block
+                    pass
+
+            # Security Zones
+            zones = SecurityZone.query.all()
+            custom_zones = [z for z in zones if not z.is_default]
+            if custom_zones:
+                for z in custom_zones:
+                    lines.append(f'zone {z.name}')
+                    if z.description:
+                        lines.append(f'  description {z.description}')
+                    lines.append('!')
+
+            # Zone Policies
+            policies = ZonePolicy.query.filter_by(is_active=True).order_by(ZonePolicy.priority).all()
+            if policies:
+                lines.append('zone-policy')
+                for p in policies:
+                    src = p.source_zone_rel.name if p.source_zone_rel else 'unknown'
+                    dst = p.dest_zone_rel.name if p.dest_zone_rel else 'unknown'
+                    proto = f' {p.protocol}' if p.protocol else ''
+                    port = f' {p.port}' if p.port else ''
+                    lines.append(f'  policy {src} {dst} {p.action}{proto}{port}')
+                lines.append('!')
+        except Exception:
+            pass  # VLAN/zone tables may not exist yet
+
         # Management mode
         lines.append(f'nexus {config.management_mode}')
         lines.append('!')

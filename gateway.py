@@ -135,7 +135,7 @@ def startup_sync(app):
             mgmt_mode = 'standalone'
 
         # 1. Dependency check
-        logger.info('[1/9] Running dependency check...')
+        logger.info('[1/12] Running dependency check...')
         try:
             from system.checker import refresh_health
             health = refresh_health()
@@ -147,32 +147,56 @@ def startup_sync(app):
         except Exception as e:
             logger.error(f'  Dependency check failed: {e}')
 
-        # 2. Apply interface configs
-        logger.info('[2/9] Applying interface configurations...')
+        # 2. Apply switchport modes
+        logger.info('[2/12] Applying switchport modes...')
+        try:
+            from services.vlan_service import sync_switchport_modes_on_boot
+            sync_switchport_modes_on_boot()
+        except Exception as e:
+            logger.error(f'  Switchport mode sync failed: {e}')
+
+        # 3. Create VLAN sub-interfaces
+        logger.info('[3/12] Creating VLAN sub-interfaces...')
+        try:
+            from services.vlan_service import sync_vlans_on_boot
+            sync_vlans_on_boot()
+        except Exception as e:
+            logger.error(f'  VLAN sync failed: {e}')
+
+        # 4. Apply interface configs
+        logger.info('[4/12] Applying interface configurations...')
         try:
             from services.interface_service import apply_saved_configs
             apply_saved_configs()
         except Exception as e:
             logger.error(f'  Interface config failed: {e}')
 
-        # 3. Start DHCP on LAN interfaces
-        logger.info('[3/9] Starting DHCP on LAN interfaces...')
+        # 5. Restore security zones
+        logger.info('[5/12] Restoring security zones...')
+        try:
+            from services.zone_service import sync_zones_on_boot
+            sync_zones_on_boot()
+        except Exception as e:
+            logger.error(f'  Zone sync failed: {e}')
+
+        # 6. Start DHCP on LAN interfaces
+        logger.info('[6/12] Starting DHCP on LAN interfaces...')
         try:
             from services.dhcp_service import start_dhcp_on_lan
             start_dhcp_on_lan()
         except Exception as e:
             logger.error(f'  DHCP startup failed: {e}')
 
-        # 4. Sync DNS overrides
-        logger.info('[4/9] Syncing DNS overrides...')
+        # 7. Sync DNS overrides
+        logger.info('[7/12] Syncing DNS overrides...')
         try:
             from services.dns_service import sync_overrides
             sync_overrides()
         except Exception as e:
             logger.error(f'  DNS sync failed: {e}')
 
-        # 5. Apply firewall rules
-        logger.info('[5/9] Applying firewall rules...')
+        # 8. Apply firewall rules + zone policies
+        logger.info('[8/12] Applying firewall rules...')
         try:
             from services.firewall_service import apply_default_policy, sync_all_rules
             apply_default_policy()
@@ -180,8 +204,8 @@ def startup_sync(app):
         except Exception as e:
             logger.error(f'  Firewall setup failed: {e}')
 
-        # 6. Enable IP forwarding + NAT
-        logger.info('[6/9] Enabling IP forwarding and NAT...')
+        # 9. Enable IP forwarding + NAT
+        logger.info('[9/12] Enabling IP forwarding and NAT...')
         try:
             from system.routing import enable_ip_forwarding
             from services.interface_service import setup_lan_nat
@@ -190,24 +214,24 @@ def startup_sync(app):
         except Exception as e:
             logger.error(f'  IP forwarding/NAT failed: {e}')
 
-        # 7. Bring up WireGuard interfaces
-        logger.info('[7/9] Bringing up WireGuard interfaces...')
+        # 10. Bring up WireGuard interfaces
+        logger.info('[10/12] Bringing up WireGuard interfaces...')
         try:
             from services.network_service import bring_up_all
             bring_up_all()
         except Exception as e:
             logger.error(f'  WireGuard startup failed: {e}')
 
-        # 8. Apply rate limits
-        logger.info('[8/9] Applying rate limits...')
+        # 11. Apply rate limits
+        logger.info('[11/12] Applying rate limits...')
         try:
             from services.shaping_service import apply_all_limits
             apply_all_limits()
         except Exception as e:
             logger.error(f'  Rate limit setup failed: {e}')
 
-        # 9. Nexus heartbeat — management mode aware
-        logger.info('[9/9] Nexus heartbeat check...')
+        # 12. Nexus heartbeat -- management mode aware
+        logger.info('[12/12] Nexus heartbeat check...')
         try:
             if mgmt_mode == 'standalone':
                 logger.info('  Standalone mode — skipping Nexus heartbeat')

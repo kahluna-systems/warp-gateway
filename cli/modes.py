@@ -17,13 +17,15 @@ CONFIG_DHCP = 'config-dhcp'
 CONFIG_DNS = 'config-dns'
 CONFIG_PRIVATE = 'config-private'
 CONFIG_EXCLUSIVE = 'config-exclusive'
+CONFIG_VLAN = 'config-vlan'
+CONFIG_ZONE = 'config-zone'
 
 # All valid modes
 ALL_MODES = {EXEC, PRIVILEGED, CONFIGURE, CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
-             CONFIG_PRIVATE, CONFIG_EXCLUSIVE}
+             CONFIG_PRIVATE, CONFIG_EXCLUSIVE, CONFIG_VLAN, CONFIG_ZONE}
 
 # Sub-configuration modes (children of CONFIGURE)
-SUB_MODES = {CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS}
+SUB_MODES = {CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS, CONFIG_VLAN, CONFIG_ZONE}
 
 # Prompt suffixes per mode
 PROMPT_SUFFIX = {
@@ -37,6 +39,8 @@ PROMPT_SUFFIX = {
     CONFIG_DNS: '(config-dns)#',
     CONFIG_PRIVATE: '(config-private)#',
     CONFIG_EXCLUSIVE: '(config-exclusive)#',
+    CONFIG_VLAN: '(config-vlan)#',
+    CONFIG_ZONE: '(config-zone)#',
 }
 
 # Commands available in exec mode (read-only)

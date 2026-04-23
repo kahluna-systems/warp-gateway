@@ -130,3 +130,113 @@ def no_shutdown(shell, args):
         shell.formatter.print(f'Interface {iface_name} enabled as {role}')
     else:
         shell.formatter.print(f'% Error: {result["message"]}')
+
+
+# ── Switchport Commands ──────────────────────────────────────────────────────
+
+def set_switchport_mode(shell, args):
+    """switchport mode [trunk|access|routed]"""
+    if not args:
+        shell.formatter.print('% Usage: switchport mode <trunk|access|routed>')
+        return
+
+    mode = args[0].lower()
+    iface_name = shell.mode_stack.context.get('interface')
+    if not iface_name:
+        shell.formatter.print('% No interface selected')
+        return
+
+    from services.vlan_service import set_switchport_mode as svc_set
+    result = svc_set(iface_name, mode)
+    if result['success']:
+        shell.formatter.print(result['message'])
+    else:
+        shell.formatter.print(f'% Error: {result["message"]}')
+
+
+def set_switchport_trunk_allowed(shell, args):
+    """switchport trunk allowed vlan <list> | add <list> | remove <list>"""
+    if not args:
+        shell.formatter.print('% Usage: switchport trunk allowed vlan <id,id,...>')
+        return
+
+    iface_name = shell.mode_stack.context.get('interface')
+    if not iface_name:
+        shell.formatter.print('% No interface selected')
+        return
+
+    # Parse operation and VLAN list
+    operation = 'set'
+    vlan_str = args[0]
+    if args[0].lower() in ('add', 'remove'):
+        operation = args[0].lower()
+        vlan_str = args[1] if len(args) > 1 else ''
+
+    vlan_ids = [int(v.strip()) for v in vlan_str.split(',') if v.strip().isdigit()]
+    if not vlan_ids:
+        shell.formatter.print('% No valid VLAN IDs provided')
+        return
+
+    from services.vlan_service import set_trunk_allowed_vlans
+    result = set_trunk_allowed_vlans(iface_name, vlan_ids, operation)
+    if result['success']:
+        shell.formatter.print(result['message'])
+    else:
+        shell.formatter.print(f'% Error: {result["message"]}')
+
+
+def set_switchport_trunk_native(shell, args):
+    """switchport trunk native vlan <id>"""
+    if not args or not args[0].isdigit():
+        shell.formatter.print('% Usage: switchport trunk native vlan <id>')
+        return
+
+    iface_name = shell.mode_stack.context.get('interface')
+    if not iface_name:
+        shell.formatter.print('% No interface selected')
+        return
+
+    from services.vlan_service import set_trunk_native_vlan
+    result = set_trunk_native_vlan(iface_name, int(args[0]))
+    if result['success']:
+        shell.formatter.print(result['message'])
+    else:
+        shell.formatter.print(f'% Error: {result["message"]}')
+
+
+def set_switchport_access_vlan(shell, args):
+    """switchport access vlan <id>"""
+    if not args or not args[0].isdigit():
+        shell.formatter.print('% Usage: switchport access vlan <id>')
+        return
+
+    iface_name = shell.mode_stack.context.get('interface')
+    if not iface_name:
+        shell.formatter.print('% No interface selected')
+        return
+
+    from services.vlan_service import set_access_vlan
+    result = set_access_vlan(iface_name, int(args[0]))
+    if result['success']:
+        shell.formatter.print(result['message'])
+    else:
+        shell.formatter.print(f'% Error: {result["message"]}')
+
+
+def set_interface_zone(shell, args):
+    """zone <name> -- assign interface to a security zone"""
+    if not args:
+        shell.formatter.print('% Usage: zone <zone-name>')
+        return
+
+    iface_name = shell.mode_stack.context.get('interface')
+    if not iface_name:
+        shell.formatter.print('% No interface selected')
+        return
+
+    from services.zone_service import assign_interface_to_zone
+    result = assign_interface_to_zone(iface_name, args[0])
+    if result['success']:
+        shell.formatter.print(result['message'])
+    else:
+        shell.formatter.print(f'% Error: {result["message"]}')

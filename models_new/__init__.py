@@ -107,6 +107,16 @@ class InterfaceConfig(db.Model):
     gateway = db.Column(db.String(45))
     dns_servers = db.Column(db.String(255))
     is_active = db.Column(db.Boolean, default=True)
+
+    # VLAN / L2 awareness
+    switchport_mode = db.Column(db.String(10), default='routed')  # routed, trunk, access
+    access_vlan_id = db.Column(db.Integer, nullable=True)
+    native_vlan_id = db.Column(db.Integer, default=1)
+    allowed_vlans = db.Column(db.Text, nullable=True)  # Comma-separated VLAN IDs or "all"
+    zone_id = db.Column(db.Integer, db.ForeignKey('security_zones.id'), nullable=True)
+    is_sub_interface = db.Column(db.Boolean, default=False)
+    parent_interface = db.Column(db.String(50), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -121,6 +131,13 @@ class InterfaceConfig(db.Model):
             'gateway': self.gateway,
             'dns_servers': self.dns_servers,
             'is_active': self.is_active,
+            'switchport_mode': self.switchport_mode,
+            'access_vlan_id': self.access_vlan_id,
+            'native_vlan_id': self.native_vlan_id,
+            'allowed_vlans': self.allowed_vlans,
+            'zone_id': self.zone_id,
+            'is_sub_interface': self.is_sub_interface,
+            'parent_interface': self.parent_interface,
         }
 
     def __repr__(self):
@@ -506,3 +523,143 @@ class GatewayConfig(db.Model):
 
     def __repr__(self):
         return f'<GatewayConfig {self.hostname} ({self.management_mode})>'
+
+
+# ── VLAN ─────────────────────────────────────────────────────────────────────
+
+class Vlan(db.Model):
+    """VLAN definition -- the VLAN database."""
+    __tablename__ = 'vlans'
+
+    id = db.Column(db.Integer, primary_key=True)
+    vlan_id = db.Column(db.Integer, unique=True, nullable=False)  # 1-4094
+    name = db.Column(db.String(64), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    sub_interfaces = db.relationship('VlanSubInterface', backref='vlan', lazy=True,
+                                     cascade='all, delete-orphan')
+
+    @staticmethod
+    def validate_vlan_id(vlan_id: int) -> bool:
+        return isinstance(vlan_id, int) and 1 <= vlan_id <= 4094
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'vlan_id': self.vlan_id,
+            'name': self.name,
+            'is_active': self.is_active,
+            'sub_interface_count': len(self.sub_interfaces),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def __repr__(self):
+        return f'<Vlan {self.vlan_id} ({self.name})>'
+
+
+class VlanSubInterface(db.Model):
+    """Association between a VLAN and a parent physical interface."""
+    __tablename__ = 'vlan_sub_interfaces'
+
+    id = db.Column(db.Integer, primary_key=True)
+    vlan_id_ref = db.Column(db.Integer, db.ForeignKey('vlans.id'), nullable=False)
+    parent_interface = db.Column(db.String(50), nullable=False)
+    sub_interface_name = db.Column(db.String(64), unique=True, nullable=False)  # e.g., "ens38.100"
+    is_qinq = db.Column(db.Boolean, default=False)
+    s_vlan_id = db.Column(db.Integer, nullable=True)
+    c_vlan_id = db.Column(db.Integer, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('parent_interface', 'vlan_id_ref', name='uq_parent_vlan'),
+    )
+
+    @property
+    def vlan_number(self) -> int:
+        return self.vlan.vlan_id
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'vlan_id': self.vlan.vlan_id if self.vlan else None,
+            'parent_interface': self.parent_interface,
+            'sub_interface_name': self.sub_interface_name,
+            'is_qinq': self.is_qinq,
+            's_vlan_id': self.s_vlan_id,
+            'c_vlan_id': self.c_vlan_id,
+            'is_active': self.is_active,
+        }
+
+    def __repr__(self):
+        return f'<VlanSubInterface {self.sub_interface_name}>'
+
+
+# ── Security Zone ────────────────────────────────────────────────────────────
+
+class SecurityZone(db.Model):
+    """Named security zone for firewall policy grouping."""
+    __tablename__ = 'security_zones'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(32), unique=True, nullable=False)
+    description = db.Column(db.String(255), default='')
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    interfaces = db.relationship('InterfaceConfig', backref='zone', lazy=True)
+    source_policies = db.relationship('ZonePolicy', foreign_keys='ZonePolicy.source_zone_id',
+                                      backref='source_zone_rel', lazy=True)
+    dest_policies = db.relationship('ZonePolicy', foreign_keys='ZonePolicy.dest_zone_id',
+                                    backref='dest_zone_rel', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'is_default': self.is_default,
+            'interface_count': len(self.interfaces),
+        }
+
+    def __repr__(self):
+        return f'<SecurityZone {self.name}>'
+
+
+class ZonePolicy(db.Model):
+    """Firewall policy between two security zones."""
+    __tablename__ = 'zone_policies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_zone_id = db.Column(db.Integer, db.ForeignKey('security_zones.id'), nullable=False)
+    dest_zone_id = db.Column(db.Integer, db.ForeignKey('security_zones.id'), nullable=False)
+    action = db.Column(db.String(10), nullable=False)  # ACCEPT, DROP, REJECT
+    protocol = db.Column(db.String(10), nullable=True)
+    port = db.Column(db.Integer, nullable=True)
+    priority = db.Column(db.Integer, default=100)
+    description = db.Column(db.String(255), default='')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('ix_zone_policy_priority', 'priority'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'source_zone': self.source_zone_rel.name if self.source_zone_rel else None,
+            'dest_zone': self.dest_zone_rel.name if self.dest_zone_rel else None,
+            'action': self.action,
+            'protocol': self.protocol,
+            'port': self.port,
+            'priority': self.priority,
+            'description': self.description,
+            'is_active': self.is_active,
+        }
+
+    def __repr__(self):
+        return f'<ZonePolicy {self.source_zone_id}->{self.dest_zone_id} {self.action}>'

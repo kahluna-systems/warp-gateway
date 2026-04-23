@@ -568,3 +568,106 @@ def show_tech_support(shell, args):
     print('=' * 60)
     print('End of technical support dump')
     print('=' * 60)
+
+
+# ── VLAN and Zone Show Commands ──────────────────────────────────────────────
+
+def show_vlan(shell, args):
+    """show vlan -- display VLAN table"""
+    from services.vlan_service import list_vlans
+    from models_new import VlanSubInterface, SecurityZone
+
+    vlans = list_vlans()
+    if not vlans:
+        shell.formatter.print('No VLANs configured')
+        return
+
+    headers = ['ID', 'Name', 'Interfaces', 'Zone', 'Status']
+    rows = []
+    for v in vlans:
+        ifaces = [s.sub_interface_name for s in v.sub_interfaces]
+        # Get zone from first sub-interface
+        zone_name = 'N/A'
+        for s in v.sub_interfaces:
+            from models_new import InterfaceConfig
+            cfg = InterfaceConfig.query.filter_by(name=s.sub_interface_name).first()
+            if cfg and cfg.zone:
+                zone_name = cfg.zone.name
+                break
+
+        rows.append([
+            str(v.vlan_id),
+            v.name,
+            ', '.join(ifaces) if ifaces else 'none',
+            zone_name,
+            'Active' if v.is_active else 'Inactive',
+        ])
+    print(shell.formatter.table(headers, rows))
+
+
+def show_interfaces_trunk(shell, args):
+    """show interfaces trunk -- display trunk port status"""
+    from models_new import InterfaceConfig
+
+    trunks = InterfaceConfig.query.filter_by(switchport_mode='trunk').all()
+    if not trunks:
+        shell.formatter.print('No trunk ports configured')
+        return
+
+    headers = ['Interface', 'Allowed VLANs', 'Native VLAN', 'Role']
+    rows = []
+    for t in trunks:
+        rows.append([
+            t.name,
+            t.allowed_vlans or 'all',
+            str(t.native_vlan_id or 1),
+            t.role,
+        ])
+    print(shell.formatter.table(headers, rows))
+
+
+def show_zone(shell, args):
+    """show zone -- display security zone assignments"""
+    from services.zone_service import list_zones
+
+    zones = list_zones()
+    if not zones:
+        shell.formatter.print('No security zones configured')
+        return
+
+    headers = ['Zone', 'Description', 'Interfaces', 'Default']
+    rows = []
+    for z in zones:
+        ifaces = [i.name for i in z.interfaces]
+        rows.append([
+            z.name,
+            z.description or '',
+            ', '.join(ifaces) if ifaces else 'none',
+            'Yes' if z.is_default else 'No',
+        ])
+    print(shell.formatter.table(headers, rows))
+
+
+def show_zone_policy(shell, args):
+    """show zone-policy -- display zone firewall policies"""
+    from services.zone_service import list_zone_policies
+
+    policies = list_zone_policies()
+    if not policies:
+        shell.formatter.print('No zone policies configured')
+        return
+
+    headers = ['ID', 'Source', 'Destination', 'Action', 'Protocol', 'Port', 'Priority']
+    rows = []
+    for p in policies:
+        d = p.to_dict()
+        rows.append([
+            str(p.id),
+            d.get('source_zone', 'N/A'),
+            d.get('dest_zone', 'N/A'),
+            p.action,
+            p.protocol or 'any',
+            str(p.port) if p.port else 'any',
+            str(p.priority),
+        ])
+    print(shell.formatter.table(headers, rows))

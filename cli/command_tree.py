@@ -9,6 +9,7 @@ from typing import Optional, Callable
 from cli.modes import (
     EXEC, PRIVILEGED, CONFIGURE,
     CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
+    CONFIG_VLAN, CONFIG_ZONE,
 )
 
 
@@ -56,6 +57,9 @@ def build_exec_tree() -> dict:
         handler=show_h.show_interfaces,
         params=[ParamDef('name', 'Interface name (optional)', required=False)],
     ))
+    show.children['interfaces'].add_child(CommandNode(
+        'trunk', 'Display trunk port status', handler=show_h.show_interfaces_trunk,
+    ))
     show.add_child(CommandNode('ip', 'Display IP information'))
     show.children['ip'].add_child(CommandNode('route', 'Display the routing table', handler=show_h.show_ip_route))
 
@@ -98,6 +102,10 @@ def build_exec_tree() -> dict:
     show.add_child(CommandNode('uptime', 'Display system uptime', handler=show_h.show_uptime))
     show.add_child(CommandNode('history', 'Display command history', handler=show_h.show_history))
     show.add_child(CommandNode('tech-support', 'Dump full system state for support', handler=show_h.show_tech_support))
+
+    show.add_child(CommandNode('vlan', 'Display VLAN table', handler=show_h.show_vlan))
+    show.add_child(CommandNode('zone', 'Display security zone assignments', handler=show_h.show_zone))
+    show.add_child(CommandNode('zone-policy', 'Display zone firewall policies', handler=show_h.show_zone_policy))
 
     # ── diagnostics ──────────────────────────────────────────────────────
     tree['ping'] = CommandNode(
@@ -232,6 +240,14 @@ def build_configure_tree() -> dict:
     ))
     tree['dhcp'] = CommandNode('dhcp', 'Enter DHCP configuration mode')
     tree['dns'] = CommandNode('dns', 'Enter DNS configuration mode')
+    tree['vlan'] = CommandNode(
+        'vlan', 'Configure a VLAN',
+        params=[ParamDef('id', 'VLAN ID (1-4094)')],
+    )
+    tree['zone'] = CommandNode(
+        'zone', 'Configure a security zone',
+        params=[ParamDef('name', 'Zone name')],
+    )
     tree['hostname'] = CommandNode(
         'hostname', 'Set the gateway hostname',
         handler=sys_h.set_hostname,
@@ -314,6 +330,42 @@ def build_interface_submode_tree() -> dict:
     tree['shutdown'] = CommandNode('shutdown', 'Disable the interface', handler=if_h.shutdown)
     tree['no'] = CommandNode('no', 'Negate a command')
     tree['no'].add_child(CommandNode('shutdown', 'Enable the interface', handler=if_h.no_shutdown))
+
+    # Switchport commands
+    tree['switchport'] = CommandNode('switchport', 'Configure Layer 2 switching')
+    tree['switchport'].add_child(CommandNode(
+        'mode', 'Set switchport mode',
+        handler=if_h.set_switchport_mode,
+        params=[ParamDef('mode', 'trunk, access, or routed', choices=['trunk', 'access', 'routed'])],
+    ))
+    tree['switchport'].add_child(CommandNode('trunk', 'Configure trunk settings'))
+    tree['switchport'].children['trunk'].add_child(CommandNode(
+        'allowed', 'Configure allowed VLANs'))
+    tree['switchport'].children['trunk'].children['allowed'].add_child(CommandNode(
+        'vlan', 'Set allowed VLAN list',
+        handler=if_h.set_switchport_trunk_allowed,
+        params=[ParamDef('list', 'VLAN IDs (comma-separated) or add/remove <list>')],
+    ))
+    tree['switchport'].children['trunk'].add_child(CommandNode(
+        'native', 'Configure native VLAN'))
+    tree['switchport'].children['trunk'].children['native'].add_child(CommandNode(
+        'vlan', 'Set native VLAN ID',
+        handler=if_h.set_switchport_trunk_native,
+        params=[ParamDef('id', 'VLAN ID')],
+    ))
+    tree['switchport'].add_child(CommandNode('access', 'Configure access settings'))
+    tree['switchport'].children['access'].add_child(CommandNode(
+        'vlan', 'Set access VLAN',
+        handler=if_h.set_switchport_access_vlan,
+        params=[ParamDef('id', 'VLAN ID')],
+    ))
+
+    # Zone assignment
+    tree['zone'] = CommandNode(
+        'zone', 'Assign interface to a security zone',
+        handler=if_h.set_interface_zone,
+        params=[ParamDef('name', 'Zone name')],
+    )
 
     tree['exit'] = CommandNode('exit', 'Return to configure mode')
     tree['end'] = CommandNode('end', 'Return to privileged mode')
@@ -457,7 +509,6 @@ def build_dns_submode_tree() -> dict:
     from cli.handlers import dns as dns_h
 
     tree = {}
-
     tree['override'] = CommandNode(
         'override', 'Add a DNS override',
         handler=dns_h.add_override,
@@ -523,5 +574,56 @@ def get_command_trees() -> dict:
         CONFIG_VPN: build_vpn_submode_tree(),
         CONFIG_DHCP: build_dhcp_submode_tree(),
         CONFIG_DNS: build_dns_submode_tree(),
+        CONFIG_VLAN: build_vlan_submode_tree(),
+        CONFIG_ZONE: build_zone_submode_tree(),
     }
     return _TREES
+
+
+def build_vlan_submode_tree() -> dict:
+    """Build commands for VLAN sub-configuration mode."""
+    from cli.handlers import vlan as vlan_h
+
+    tree = {}
+    tree['name'] = CommandNode(
+        'name', 'Set VLAN name',
+        handler=vlan_h.set_vlan_name,
+        params=[ParamDef('name', 'VLAN name string')],
+    )
+    tree['no'] = CommandNode('no', 'Negate a command')
+    tree['no'].add_child(CommandNode('name', 'Reset VLAN name to default', handler=vlan_h.no_vlan_name))
+    tree['exit'] = CommandNode('exit', 'Return to configure mode')
+    tree['end'] = CommandNode('end', 'Return to privileged mode')
+    return tree
+
+
+def build_zone_submode_tree() -> dict:
+    """Build commands for zone sub-configuration mode."""
+    from cli.handlers import zone as zone_h
+
+    tree = {}
+    tree['description'] = CommandNode(
+        'description', 'Set zone description',
+        handler=zone_h.set_zone_description,
+        params=[ParamDef('text', 'Description text')],
+    )
+    tree['policy'] = CommandNode(
+        'policy', 'Add a zone firewall policy',
+        handler=zone_h.add_zone_policy,
+        params=[
+            ParamDef('source', 'Source zone name'),
+            ParamDef('destination', 'Destination zone name'),
+            ParamDef('action', 'ACCEPT, DROP, or REJECT', choices=['ACCEPT', 'DROP', 'REJECT']),
+            ParamDef('protocol', 'Protocol (optional)', required=False),
+            ParamDef('port', 'Port (optional)', required=False),
+        ],
+    )
+    tree['no'] = CommandNode('no', 'Remove a policy')
+    tree['no'].add_child(CommandNode(
+        'policy', 'Remove a zone policy',
+        handler=zone_h.remove_zone_policy,
+        params=[ParamDef('id', 'Policy ID')],
+    ))
+    tree['exit'] = CommandNode('exit', 'Return to configure mode')
+    tree['end'] = CommandNode('end', 'Return to privileged mode')
+    return tree

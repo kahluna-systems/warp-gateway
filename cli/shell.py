@@ -14,7 +14,7 @@ import sys
 from cli.modes import (
     ModeStack, EXEC, PRIVILEGED, CONFIGURE,
     CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
-    CONFIG_PRIVATE, CONFIG_EXCLUSIVE,
+    CONFIG_PRIVATE, CONFIG_EXCLUSIVE, CONFIG_VLAN, CONFIG_ZONE,
     PROMPT_SUFFIX,
 )
 from cli.parser import CommandParser, ParseResult
@@ -315,7 +315,8 @@ class WarpShell(cmd.Cmd):
             print('Goodbye.')
             return True  # Exits cmdloop
 
-        if current in (CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS):
+        if current in (CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
+                       CONFIG_VLAN, CONFIG_ZONE):
             self.mode_stack.pop()
         elif current == CONFIG_PRIVATE:
             # Discard candidate and warn
@@ -355,7 +356,7 @@ class WarpShell(cmd.Cmd):
         """Return to privileged mode from any config/sub-config mode."""
         current = self.mode_stack.current
         if current in (CONFIGURE, CONFIG_IF, CONFIG_FW, CONFIG_VPN, CONFIG_DHCP, CONFIG_DNS,
-                       CONFIG_PRIVATE, CONFIG_EXCLUSIVE):
+                       CONFIG_PRIVATE, CONFIG_EXCLUSIVE, CONFIG_VLAN, CONFIG_ZONE):
             # Handle private/exclusive cleanup
             if current == CONFIG_PRIVATE:
                 if self.session_mgr and self.session_id:
@@ -463,9 +464,19 @@ class WarpShell(cmd.Cmd):
         """Handle commands that enter sub-configuration modes."""
         current = self.mode_stack.current
 
-        if current == CONFIGURE:
+        if current in (CONFIGURE, CONFIG_PRIVATE, CONFIG_EXCLUSIVE):
             if node.name == 'interface' and result.args:
-                self.mode_stack.push(CONFIG_IF, {'interface': result.args[0]})
+                iface_name = result.args[0]
+                # Auto-create VLAN sub-interface if name contains a dot
+                if '.' in iface_name:
+                    try:
+                        parent, vid_str = iface_name.rsplit('.', 1)
+                        if vid_str.isdigit():
+                            from services.vlan_service import create_sub_interface
+                            create_sub_interface(parent, int(vid_str))
+                    except Exception:
+                        pass
+                self.mode_stack.push(CONFIG_IF, {'interface': iface_name})
                 self._sync_session_mode()
             elif node.name == 'firewall':
                 self.mode_stack.push(CONFIG_FW)
@@ -478,6 +489,23 @@ class WarpShell(cmd.Cmd):
                 self._sync_session_mode()
             elif node.name == 'dns':
                 self.mode_stack.push(CONFIG_DNS)
+                self._sync_session_mode()
+            elif node.name == 'vlan' and result.args:
+                vlan_id = int(result.args[0]) if result.args[0].isdigit() else None
+                if vlan_id:
+                    # Auto-create VLAN if it doesn't exist
+                    from services.vlan_service import create_vlan, get_vlan
+                    if not get_vlan(vlan_id):
+                        create_vlan(vlan_id)
+                    self.mode_stack.push(CONFIG_VLAN, {'vlan_id': vlan_id})
+                    self._sync_session_mode()
+            elif node.name == 'zone' and result.args:
+                zone_name = result.args[0]
+                # Auto-create zone if it doesn't exist
+                from services.zone_service import create_zone, get_zone
+                if not get_zone(zone_name):
+                    create_zone(zone_name)
+                self.mode_stack.push(CONFIG_ZONE, {'zone_name': zone_name})
                 self._sync_session_mode()
 
     def _check_permission(self, min_role):
