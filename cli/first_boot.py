@@ -546,6 +546,23 @@ class FirstBootWizard:
         from system.commander import run
         run(['hostnamectl', 'set-hostname', self.hostname], sudo=True)
 
+        # Update /etc/hosts so sudo and other tools can resolve the hostname
+        hosts_line = f'127.0.0.1 {self.hostname}\n'
+        # Remove any old gateway hostname entries and add the new one
+        try:
+            with open('/etc/hosts', 'r') as f:
+                lines = f.readlines()
+            # Filter out old warp-gw entries but keep everything else
+            filtered = [l for l in lines if not any(
+                h in l for h in ['warp-gw', self.hostname]
+                if h != 'localhost'
+            )]
+            filtered.append(hosts_line)
+            run(['tee', '/etc/hosts'], sudo=True, input_data=''.join(filtered))
+        except Exception as e:
+            # Fallback: just append
+            run(['tee', '-a', '/etc/hosts'], sudo=True, input_data=hosts_line)
+
         # 2. Create/update admin user
         print('  Creating admin user...')
         user = User.query.filter_by(username=self.admin_user).first()

@@ -240,3 +240,28 @@ def set_interface_zone(shell, args):
         shell.formatter.print(result['message'])
     else:
         shell.formatter.print(f'% Error: {result["message"]}')
+
+
+def set_description(shell, args):
+    """description <text> -- set interface description"""
+    if not args:
+        shell.formatter.print('% Usage: description <text>')
+        return
+
+    iface_name = shell.mode_stack.context.get('interface')
+    if not iface_name:
+        shell.formatter.print('% No interface selected')
+        return
+
+    description = ' '.join(args)
+    from models_new import InterfaceConfig
+    from database import db
+
+    cfg = InterfaceConfig.query.filter_by(name=iface_name).first()
+    if not cfg:
+        shell.formatter.print(f'% Interface {iface_name} not configured')
+        return
+
+    cfg.description = description
+    db.session.commit()
+    shell.formatter.print(f'Description set on {iface_name}')

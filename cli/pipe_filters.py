@@ -61,7 +61,7 @@ def apply_filters(output: str, filters: list) -> tuple:
     no_more = False
 
     for filter_name, filter_args in filters:
-        if filter_name == 'include':
+        if filter_name == 'include' or filter_name == 'match':
             output = _filter_include(output, filter_args)
         elif filter_name == 'exclude':
             output = _filter_exclude(output, filter_args)

@@ -43,6 +43,13 @@ def main():
             # Ensure GatewayConfig exists
             GatewayConfig.get_instance()
 
+            # Ensure default security zones exist
+            try:
+                from services.zone_service import ensure_default_zones
+                ensure_default_zones()
+            except Exception:
+                pass
+
             wizard = FirstBootWizard(app)
             completed = wizard.run()
 

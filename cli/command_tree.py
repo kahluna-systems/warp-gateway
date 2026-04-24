@@ -367,6 +367,13 @@ def build_interface_submode_tree() -> dict:
         params=[ParamDef('name', 'Zone name')],
     )
 
+    # Description
+    tree['description'] = CommandNode(
+        'description', 'Set interface description',
+        handler=if_h.set_description,
+        params=[ParamDef('text', 'Description text')],
+    )
+
     tree['exit'] = CommandNode('exit', 'Return to configure mode')
     tree['end'] = CommandNode('end', 'Return to privileged mode')
 

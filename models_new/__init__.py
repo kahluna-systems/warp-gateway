@@ -116,6 +116,7 @@ class InterfaceConfig(db.Model):
     zone_id = db.Column(db.Integer, db.ForeignKey('security_zones.id'), nullable=True)
     is_sub_interface = db.Column(db.Boolean, default=False)
     parent_interface = db.Column(db.String(50), nullable=True)
+    description = db.Column(db.String(255), nullable=True)  # Interface description
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
