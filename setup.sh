@@ -97,6 +97,8 @@ apt-get install -y -qq \
     python3 \
     python3-venv \
     python3-pip \
+    python3-dev \
+    gcc \
     openssh-server \
     curl \
     > /dev/null 2>&1
