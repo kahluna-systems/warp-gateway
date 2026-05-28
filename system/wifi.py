@@ -248,9 +248,14 @@ def _parse_scan_results(output: str) -> List[ScannedNetwork]:
             current.ssid = stripped[5:].strip()
         elif stripped.startswith("freq:"):
             try:
-                current.frequency = int(stripped[5:].strip())
+                current.frequency = int(float(stripped[5:].strip()))
                 current.channel = _freq_to_channel(current.frequency)
                 current.band = _freq_to_band(current.frequency)
+            except ValueError:
+                pass
+        elif stripped.startswith("DS Parameter set: channel"):
+            try:
+                current.channel = int(stripped.split("channel")[-1].strip())
             except ValueError:
                 pass
         elif stripped.startswith("signal:"):
