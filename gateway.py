@@ -90,6 +90,7 @@ def create_app():
     from routes.diagnostics_routes import diagnostics_bp
     from routes.system_routes import system_bp
     from routes.api import api_bp
+    from routes.wifi_routes import wifi_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -103,6 +104,7 @@ def create_app():
     app.register_blueprint(diagnostics_bp)
     app.register_blueprint(system_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(wifi_bp)
 
     # ── Root redirect ────────────────────────────────────────────────────
     @app.route('/index')

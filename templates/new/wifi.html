@@ -1,0 +1,289 @@
+{% extends "new/base.html" %}
+{% block title %}WiFi - WARP Gateway{% endblock %}
+{% block page_title %}WiFi Management{% endblock %}
+
+{% block content %}
+{% if not interfaces %}
+<div class="card empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+    <p>No wireless interfaces detected</p>
+</div>
+{% else %}
+
+<!-- Radio Information -->
+<div class="card">
+    <div class="card-header">
+        <h2>Radio Information — {{ active_iface }}</h2>
+        <span class="badge badge-green">{{ radio.get('current_mode', 'unknown') }}</span>
+    </div>
+    <div class="card-grid">
+        <div class="status-card">
+            <div class="status-card-header"><h3>Driver</h3></div>
+            <div class="status-card-value text-sm">{{ radio.get('driver', 'Unknown') }}</div>
+            <div class="status-card-label">PHY: {{ radio.get('phy', 'N/A') }}</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>Bands</h3></div>
+            <div class="status-card-value text-sm">{{ radio.get('bands', [])|join(', ') or 'Unknown' }}</div>
+            <div class="status-card-label">Modes: {{ radio.get('supported_modes', [])|join(', ') }}</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>TX Power</h3></div>
+            <div class="status-card-value">{{ radio.get('tx_power', 'N/A') }} <span class="text-sm text-muted">dBm</span></div>
+            <div class="status-card-label">Max: {{ radio.get('tx_power_max', 'N/A') }} dBm</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>Channel</h3></div>
+            <div class="status-card-value">{{ radio.get('current_channel', 'N/A') }}</div>
+            <div class="status-card-label">{{ radio.get('current_frequency', '') }} MHz / {{ radio.get('channel_width', 'N/A') }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Current Status -->
+{% if status.get('mode') == 'ap' %}
+<div class="card">
+    <div class="card-header">
+        <h2>Access Point Active</h2>
+        <form method="POST" action="{{ url_for('wifi.stop_ap') }}" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="interface" value="{{ active_iface }}">
+            <button type="submit" class="btn btn-danger btn-sm">Stop AP</button>
+        </form>
+    </div>
+    <div class="card-grid">
+        <div class="status-card">
+            <div class="status-card-header"><h3>SSID</h3></div>
+            <div class="status-card-value text-sm">{{ status.ap.ssid }}</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>Channel</h3></div>
+            <div class="status-card-value">{{ status.ap.channel }}</div>
+            <div class="status-card-label">{{ status.ap.band }}</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>Clients</h3></div>
+            <div class="status-card-value">{{ status.ap.clients_connected }}</div>
+        </div>
+    </div>
+    {% if status.get('clients') %}
+    <h3 class="mt-4" style="font-size:14px;font-weight:600;margin-bottom:12px;">Connected Stations</h3>
+    <table>
+        <thead><tr><th>MAC</th><th>Signal</th><th>TX Rate</th><th>RX Rate</th><th>Connected</th></tr></thead>
+        <tbody>
+        {% for client in status.clients %}
+        <tr>
+            <td><code>{{ client.mac }}</code></td>
+            <td>{{ client.signal }} dBm</td>
+            <td>{{ client.tx_rate }} Mbps</td>
+            <td>{{ client.rx_rate }} Mbps</td>
+            <td>{{ client.connected_time }}s</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+{% elif status.get('mode') == 'client' %}
+<div class="card">
+    <div class="card-header">
+        <h2>Connected to WiFi</h2>
+        <form method="POST" action="{{ url_for('wifi.disconnect') }}" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="interface" value="{{ active_iface }}">
+            <button type="submit" class="btn btn-danger btn-sm">Disconnect</button>
+        </form>
+    </div>
+    <div class="card-grid">
+        <div class="status-card">
+            <div class="status-card-header"><h3>SSID</h3></div>
+            <div class="status-card-value text-sm">{{ status.connection.ssid }}</div>
+            <div class="status-card-label">BSSID: {{ status.connection.bssid }}</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>Signal</h3></div>
+            <div class="status-card-value">{{ status.connection.signal }} <span class="text-sm text-muted">dBm</span></div>
+            <div class="status-card-label">Quality: {{ status.connection.signal_quality }}%</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>Speed</h3></div>
+            <div class="status-card-value text-sm">TX {{ status.connection.tx_rate }} / RX {{ status.connection.rx_rate }} Mbps</div>
+        </div>
+        <div class="status-card">
+            <div class="status-card-header"><h3>Channel</h3></div>
+            <div class="status-card-value">{{ status.connection.channel }}</div>
+            <div class="status-card-label">{{ status.connection.frequency }} MHz</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Connect to Network (Client Mode) -->
+{% if status.get('mode') != 'ap' %}
+<div class="card">
+    <div class="card-header">
+        <h2>Connect to Network</h2>
+        <button class="btn btn-secondary btn-sm" onclick="scanNetworks()">Scan Networks</button>
+    </div>
+    <div id="scan-results" style="display:none; margin-bottom:16px;">
+        <table>
+            <thead><tr><th>SSID</th><th>Signal</th><th>Channel</th><th>Security</th><th>Action</th></tr></thead>
+            <tbody id="scan-tbody"></tbody>
+        </table>
+    </div>
+    <form method="POST" action="{{ url_for('wifi.connect') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="interface" value="{{ active_iface }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>SSID</label>
+                <input type="text" name="ssid" id="connect-ssid" placeholder="Network name" required>
+            </div>
+            <div class="form-group">
+                <label>Security</label>
+                <select name="security" id="connect-security">
+                    <option value="WPA2-PSK">WPA2-PSK</option>
+                    <option value="WPA3-SAE">WPA3-SAE</option>
+                    <option value="WPA2/3">WPA2/WPA3 Mixed</option>
+                    <option value="Open">Open (No Password)</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" placeholder="WiFi password">
+        </div>
+        <button type="submit" class="btn btn-primary">Connect</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Start Access Point -->
+{% if status.get('mode') != 'client' and radio.get('supports_ap') %}
+<div class="card">
+    <div class="card-header">
+        <h2>Access Point Mode</h2>
+    </div>
+    {% if status.get('mode') != 'ap' %}
+    <form method="POST" action="{{ url_for('wifi.start_ap') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="interface" value="{{ active_iface }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>SSID</label>
+                <input type="text" name="ssid" placeholder="WARP-Network" required>
+            </div>
+            <div class="form-group">
+                <label>Security</label>
+                <select name="security">
+                    <option value="WPA2-PSK">WPA2-PSK</option>
+                    <option value="WPA3-SAE">WPA3-SAE</option>
+                    <option value="WPA2/3">WPA2/WPA3 Mixed</option>
+                    <option value="Open">Open</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Min 8 characters">
+            </div>
+            <div class="form-group">
+                <label>Channel</label>
+                <select name="channel">
+                    <optgroup label="2.4 GHz">
+                        {% for ch in [1,6,11] %}<option value="{{ ch }}">{{ ch }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="5 GHz">
+                        {% for ch in [36,40,44,48,149,153,157,161] %}<option value="{{ ch }}">{{ ch }}</option>{% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Band</label>
+                <select name="band">
+                    {% for b in radio.get('bands', ['2.4GHz']) %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Gateway IP</label>
+                <input type="text" name="gateway_ip" value="10.0.0.1" placeholder="10.0.0.1">
+            </div>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="hidden"> Hidden SSID</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Start Access Point</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Radio Configuration -->
+<div class="card">
+    <div class="card-header">
+        <h2>Radio Configuration</h2>
+    </div>
+    <form method="POST" action="{{ url_for('wifi.configure_radio') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="interface" value="{{ active_iface }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Country Code</label>
+                <input type="text" name="country_code" value="{{ radio.get('country_code', 'US') }}" maxlength="2" placeholder="US">
+            </div>
+            <div class="form-group">
+                <label>TX Power (dBm)</label>
+                <input type="number" name="tx_power" value="{{ radio.get('tx_power', '') }}" step="0.5" min="0" max="{{ radio.get('tx_power_max', 31) }}" placeholder="Auto">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-secondary">Apply Radio Settings</button>
+    </form>
+</div>
+
+<script>
+function scanNetworks() {
+    const btn = event.target;
+    btn.textContent = 'Scanning...';
+    btn.disabled = true;
+
+    fetch('/wifi/scan?interface={{ active_iface }}')
+        .then(r => r.json())
+        .then(networks => {
+            const tbody = document.getElementById('scan-tbody');
+            tbody.innerHTML = '';
+            networks.forEach(n => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${n.ssid || '(Hidden)'}</strong></td>
+                    <td>${n.signal} dBm (${n.signal_quality}%)</td>
+                    <td>${n.channel || '-'} <span class="text-muted">${n.band}</span></td>
+                    <td><span class="badge ${n.security === 'Open' ? 'badge-amber' : 'badge-green'}">${n.security}</span></td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="selectNetwork('${n.ssid}', '${n.security}')">Select</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+            document.getElementById('scan-results').style.display = 'block';
+            btn.textContent = 'Scan Networks';
+            btn.disabled = false;
+        })
+        .catch(err => {
+            btn.textContent = 'Scan Networks';
+            btn.disabled = false;
+            alert('Scan failed: ' + err.message);
+        });
+}
+
+function selectNetwork(ssid, security) {
+    document.getElementById('connect-ssid').value = ssid;
+    const secMap = {'WPA2-PSK': 'WPA2-PSK', 'WPA3-SAE': 'WPA3-SAE', 'WPA2/3': 'WPA2/3', 'Open': 'Open'};
+    document.getElementById('connect-security').value = secMap[security] || 'WPA2-PSK';
+    document.getElementById('connect-ssid').scrollIntoView({behavior: 'smooth'});
+}
+</script>
+
+{% endif %}
+{% endblock %}

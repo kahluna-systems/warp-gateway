@@ -101,6 +101,10 @@ apt-get install -y -qq \
     gcc \
     openssh-server \
     curl \
+    iw \
+    wireless-tools \
+    wpasupplicant \
+    hostapd \
     > /dev/null 2>&1
 echo "  System packages installed."
 
